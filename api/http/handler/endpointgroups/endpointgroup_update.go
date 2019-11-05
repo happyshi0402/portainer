@@ -2,18 +2,20 @@ package endpointgroups
 
 import (
 	"net/http"
+	"reflect"
 
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 type endpointGroupUpdatePayload struct {
-	Name                string
-	Description         string
-	AssociatedEndpoints []portainer.EndpointID
-	Tags                []string
+	Name               string
+	Description        string
+	Tags               []string
+	UserAccessPolicies portainer.UserAccessPolicies
+	TeamAccessPolicies portainer.TeamAccessPolicies
 }
 
 func (payload *endpointGroupUpdatePayload) Validate(r *http.Request) error {
@@ -52,20 +54,26 @@ func (handler *Handler) endpointGroupUpdate(w http.ResponseWriter, r *http.Reque
 		endpointGroup.Tags = payload.Tags
 	}
 
+	updateAuthorizations := false
+	if payload.UserAccessPolicies != nil && !reflect.DeepEqual(payload.UserAccessPolicies, endpointGroup.UserAccessPolicies) {
+		endpointGroup.UserAccessPolicies = payload.UserAccessPolicies
+		updateAuthorizations = true
+	}
+
+	if payload.TeamAccessPolicies != nil && !reflect.DeepEqual(payload.TeamAccessPolicies, endpointGroup.TeamAccessPolicies) {
+		endpointGroup.TeamAccessPolicies = payload.TeamAccessPolicies
+		updateAuthorizations = true
+	}
+
 	err = handler.EndpointGroupService.UpdateEndpointGroup(endpointGroup.ID, endpointGroup)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist endpoint group changes inside the database", err}
 	}
 
-	endpoints, err := handler.EndpointService.Endpoints()
-	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve endpoints from the database", err}
-	}
-
-	for _, endpoint := range endpoints {
-		err = handler.updateEndpointGroup(endpoint, portainer.EndpointGroupID(endpointGroupID), payload.AssociatedEndpoints)
+	if updateAuthorizations {
+		err = handler.AuthorizationService.UpdateUsersAuthorizations()
 		if err != nil {
-			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update endpoint", err}
+			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update user authorizations", err}
 		}
 	}
 

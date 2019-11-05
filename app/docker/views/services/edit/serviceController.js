@@ -1,10 +1,29 @@
+require('./includes/configs.html')
+require('./includes/constraints.html')
+require('./includes/container-specs.html')
+require('./includes/containerlabels.html')
+require('./includes/environmentvariables.html')
+require('./includes/hosts.html')
+require('./includes/logging.html')
+require('./includes/mounts.html')
+require('./includes/networks.html')
+require('./includes/placementPreferences.html')
+require('./includes/ports.html')
+require('./includes/resources.html')
+require('./includes/restart.html')
+require('./includes/secrets.html')
+require('./includes/servicelabels.html')
+require('./includes/tasks.html')
+require('./includes/updateconfig.html')
+
 angular.module('portainer.docker')
 .controller('ServiceController', ['$q', '$scope', '$transition$', '$state', '$location', '$timeout', '$anchorScroll', 'ServiceService', 'ConfigService', 'ConfigHelper', 'SecretService', 'ImageService', 'SecretHelper', 'Service', 'ServiceHelper', 'LabelHelper', 'TaskService', 'NodeService', 'ContainerService', 'TaskHelper', 'Notifications', 'ModalService', 'PluginService', 'Authentication', 'SettingsService', 'VolumeService', 'ImageHelper', 'WebhookService', 'EndpointProvider', 'clipboard','WebhookHelper',
 function ($q, $scope, $transition$, $state, $location, $timeout, $anchorScroll, ServiceService, ConfigService, ConfigHelper, SecretService, ImageService, SecretHelper, Service, ServiceHelper, LabelHelper, TaskService, NodeService, ContainerService, TaskHelper, Notifications, ModalService, PluginService, Authentication, SettingsService, VolumeService, ImageHelper, WebhookService, EndpointProvider, clipboard, WebhookHelper) {
 
   $scope.state = {
     updateInProgress: false,
-    deletionInProgress: false
+    deletionInProgress: false,
+    rollbackInProgress: false,
   };
 
   $scope.tasks = [];
@@ -263,7 +282,7 @@ function ($q, $scope, $transition$, $state, $location, $timeout, $anchorScroll, 
     return hasChanges;
   };
 
-  $scope.updateService = function updateService(service) {
+  function buildChanges(service) {
     var config = ServiceHelper.serviceToConfig(service.Model);
     config.Name = service.Name;
     config.Labels = LabelHelper.fromKeyValueToLabelHash(service.ServiceLabels);
@@ -343,8 +362,55 @@ function ($q, $scope, $transition$, $state, $location, $timeout, $anchorScroll, 
       Mode: (config.EndpointSpec && config.EndpointSpec.Mode) || 'vip',
       Ports: service.Ports
     };
+    return service, config;
+  }
 
-    Service.update({ id: service.Id, version: service.Version }, config, function (data) {
+  function rollbackService(service) {
+    $scope.state.rollbackInProgress = true;
+    let config = {};
+    service, config = buildChanges(service);
+    ServiceService.update(service, config, 'previous')
+    .then(function (data) {
+      if (data.message && data.message.match(/^rpc error:/)) {
+        Notifications.error(data.message, 'Error');
+      } else {
+        Notifications.success('Success', 'Service successfully rolled back');
+        $scope.cancelChanges({});
+        initView();
+      }
+    }).catch(function (e) {
+      if (e.data.message && e.data.message.includes('does not have a previous spec')) {
+        Notifications.error('Failure', { message: 'No previous config to rollback to.' });
+      } else {
+        Notifications.error('Failure', e, 'Unable to rollback service');
+      }
+    }).finally(function () {
+      $scope.state.rollbackInProgress = false;
+    });
+  }
+
+  $scope.rollbackService = function(service) {
+    ModalService.confirm({
+      title: 'Rollback service',
+      message: 'Are you sure you want to rollback?',
+      buttons: {
+        confirm: {
+          label: 'Yes',
+          className: 'btn-danger'
+        }
+      },
+      callback: function onConfirm(confirmed) {
+        if(!confirmed) { return; }
+        rollbackService(service);
+      }
+    });
+  };
+
+  $scope.updateService = function updateService(service) {
+    let config = {};
+    service, config = buildChanges(service);
+    ServiceService.update(service, config)
+    .then(function (data) {
       if (data.message && data.message.match(/^rpc error:/)) {
         Notifications.error(data.message, 'Error');
       } else {
@@ -490,8 +556,7 @@ function ($q, $scope, $transition$, $state, $location, $timeout, $anchorScroll, 
       $scope.availableLoggingDrivers = data.availableLoggingDrivers;
       $scope.availableVolumes = data.volumes;
       $scope.allowBindMounts = data.settings.AllowBindMountsForRegularUsers;
-      var userDetails = Authentication.getUserDetails();
-      $scope.isAdmin = userDetails.role === 1;
+      $scope.isAdmin = Authentication.isAdmin();
 
       if (data.webhooks.length > 0) {
         var webhook = data.webhooks[0];
@@ -542,12 +607,13 @@ function ($q, $scope, $transition$, $state, $location, $timeout, $anchorScroll, 
     });
   }
 
-  $scope.updateServiceAttribute = function updateServiceAttribute(service, name) {
+  $scope.updateServiceAttribute = updateServiceAttribute;
+  function updateServiceAttribute(service, name) {
     if (service[name] !== originalService[name] || !(name in originalService)) {
       service.hasChanges = true;
     }
     previousServiceValues.push(name);
-  };
+  }
 
   function updateServiceArray(service, name) {
     previousServiceValues.push(name);

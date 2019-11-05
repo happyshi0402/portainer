@@ -1,17 +1,20 @@
 package endpoints
 
 import (
-	"log"
+	"errors"
+	"net"
 	"net/http"
+	"net/url"
 	"runtime"
 	"strconv"
+	"strings"
 
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/crypto"
-	"github.com/portainer/portainer/http/client"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/crypto"
+	"github.com/portainer/portainer/api/http/client"
 )
 
 type endpointCreatePayload struct {
@@ -41,7 +44,7 @@ func (payload *endpointCreatePayload) Validate(r *http.Request) error {
 
 	endpointType, err := request.RetrieveNumericMultiPartFormValue(r, "EndpointType", false)
 	if err != nil || endpointType == 0 {
-		return portainer.Error("Invalid endpoint type value. Value must be one of: 1 (Docker environment), 2 (Agent environment) or 3 (Azure environment)")
+		return portainer.Error("Invalid endpoint type value. Value must be one of: 1 (Docker environment), 2 (Agent environment), 3 (Azure environment) or 4 (Edge Agent environment)")
 	}
 	payload.EndpointType = endpointType
 
@@ -149,6 +152,8 @@ func (handler *Handler) endpointCreate(w http.ResponseWriter, r *http.Request) *
 func (handler *Handler) createEndpoint(payload *endpointCreatePayload) (*portainer.Endpoint, *httperror.HandlerError) {
 	if portainer.EndpointType(payload.EndpointType) == portainer.AzureEnvironment {
 		return handler.createAzureEndpoint(payload)
+	} else if portainer.EndpointType(payload.EndpointType) == portainer.EdgeAgentEnvironment {
+		return handler.createEdgeAgentEndpoint(payload)
 	}
 
 	if payload.TLS {
@@ -172,24 +177,70 @@ func (handler *Handler) createAzureEndpoint(payload *endpointCreatePayload) (*po
 
 	endpointID := handler.EndpointService.GetNextIdentifier()
 	endpoint := &portainer.Endpoint{
-		ID:               portainer.EndpointID(endpointID),
-		Name:             payload.Name,
-		URL:              "https://management.azure.com",
-		Type:             portainer.AzureEnvironment,
-		GroupID:          portainer.EndpointGroupID(payload.GroupID),
-		PublicURL:        payload.PublicURL,
-		AuthorizedUsers:  []portainer.UserID{},
-		AuthorizedTeams:  []portainer.TeamID{},
-		Extensions:       []portainer.EndpointExtension{},
-		AzureCredentials: credentials,
-		Tags:             payload.Tags,
-		Status:           portainer.EndpointStatusUp,
-		Snapshots:        []portainer.Snapshot{},
+		ID:                 portainer.EndpointID(endpointID),
+		Name:               payload.Name,
+		URL:                "https://management.azure.com",
+		Type:               portainer.AzureEnvironment,
+		GroupID:            portainer.EndpointGroupID(payload.GroupID),
+		PublicURL:          payload.PublicURL,
+		UserAccessPolicies: portainer.UserAccessPolicies{},
+		TeamAccessPolicies: portainer.TeamAccessPolicies{},
+		Extensions:         []portainer.EndpointExtension{},
+		AzureCredentials:   credentials,
+		Tags:               payload.Tags,
+		Status:             portainer.EndpointStatusUp,
+		Snapshots:          []portainer.Snapshot{},
 	}
 
-	err = handler.EndpointService.CreateEndpoint(endpoint)
+	err = handler.saveEndpointAndUpdateAuthorizations(endpoint)
 	if err != nil {
-		return nil, &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist endpoint inside the database", err}
+		return nil, &httperror.HandlerError{http.StatusInternalServerError, "An error occured while trying to create the endpoint", err}
+	}
+
+	return endpoint, nil
+}
+
+func (handler *Handler) createEdgeAgentEndpoint(payload *endpointCreatePayload) (*portainer.Endpoint, *httperror.HandlerError) {
+	endpointType := portainer.EdgeAgentEnvironment
+	endpointID := handler.EndpointService.GetNextIdentifier()
+
+	portainerURL, err := url.Parse(payload.URL)
+	if err != nil {
+		return nil, &httperror.HandlerError{http.StatusBadRequest, "Invalid endpoint URL", err}
+	}
+
+	portainerHost, _, err := net.SplitHostPort(portainerURL.Host)
+	if err != nil {
+		portainerHost = portainerURL.Host
+	}
+
+	if portainerHost == "localhost" {
+		return nil, &httperror.HandlerError{http.StatusBadRequest, "Invalid endpoint URL", errors.New("cannot use localhost as endpoint URL")}
+	}
+
+	edgeKey := handler.ReverseTunnelService.GenerateEdgeKey(payload.URL, portainerHost, endpointID)
+
+	endpoint := &portainer.Endpoint{
+		ID:      portainer.EndpointID(endpointID),
+		Name:    payload.Name,
+		URL:     portainerHost,
+		Type:    endpointType,
+		GroupID: portainer.EndpointGroupID(payload.GroupID),
+		TLSConfig: portainer.TLSConfiguration{
+			TLS: false,
+		},
+		AuthorizedUsers: []portainer.UserID{},
+		AuthorizedTeams: []portainer.TeamID{},
+		Extensions:      []portainer.EndpointExtension{},
+		Tags:            payload.Tags,
+		Status:          portainer.EndpointStatusUp,
+		Snapshots:       []portainer.Snapshot{},
+		EdgeKey:         edgeKey,
+	}
+
+	err = handler.saveEndpointAndUpdateAuthorizations(endpoint)
+	if err != nil {
+		return nil, &httperror.HandlerError{http.StatusInternalServerError, "An error occured while trying to create the endpoint", err}
 	}
 
 	return endpoint, nil
@@ -224,12 +275,12 @@ func (handler *Handler) createUnsecuredEndpoint(payload *endpointCreatePayload) 
 		TLSConfig: portainer.TLSConfiguration{
 			TLS: false,
 		},
-		AuthorizedUsers: []portainer.UserID{},
-		AuthorizedTeams: []portainer.TeamID{},
-		Extensions:      []portainer.EndpointExtension{},
-		Tags:            payload.Tags,
-		Status:          portainer.EndpointStatusUp,
-		Snapshots:       []portainer.Snapshot{},
+		UserAccessPolicies: portainer.UserAccessPolicies{},
+		TeamAccessPolicies: portainer.TeamAccessPolicies{},
+		Extensions:         []portainer.EndpointExtension{},
+		Tags:               payload.Tags,
+		Status:             portainer.EndpointStatusUp,
+		Snapshots:          []portainer.Snapshot{},
 	}
 
 	err := handler.snapshotAndPersistEndpoint(endpoint)
@@ -268,12 +319,12 @@ func (handler *Handler) createTLSSecuredEndpoint(payload *endpointCreatePayload)
 			TLS:           payload.TLS,
 			TLSSkipVerify: payload.TLSSkipVerify,
 		},
-		AuthorizedUsers: []portainer.UserID{},
-		AuthorizedTeams: []portainer.TeamID{},
-		Extensions:      []portainer.EndpointExtension{},
-		Tags:            payload.Tags,
-		Status:          portainer.EndpointStatusUp,
-		Snapshots:       []portainer.Snapshot{},
+		UserAccessPolicies: portainer.UserAccessPolicies{},
+		TeamAccessPolicies: portainer.TeamAccessPolicies{},
+		Extensions:         []portainer.EndpointExtension{},
+		Tags:               payload.Tags,
+		Status:             portainer.EndpointStatusUp,
+		Snapshots:          []portainer.Snapshot{},
 	}
 
 	filesystemError := handler.storeTLSFiles(endpoint, payload)
@@ -293,17 +344,37 @@ func (handler *Handler) snapshotAndPersistEndpoint(endpoint *portainer.Endpoint)
 	snapshot, err := handler.Snapshotter.CreateSnapshot(endpoint)
 	endpoint.Status = portainer.EndpointStatusUp
 	if err != nil {
-		log.Printf("http error: endpoint snapshot error (endpoint=%s, URL=%s) (err=%s)\n", endpoint.Name, endpoint.URL, err)
-		endpoint.Status = portainer.EndpointStatusDown
+		if strings.Contains(err.Error(), "Invalid request signature") {
+			err = errors.New("agent already paired with another Portainer instance")
+		}
+		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to initiate communications with endpoint", err}
 	}
 
 	if snapshot != nil {
 		endpoint.Snapshots = []portainer.Snapshot{*snapshot}
 	}
 
-	err = handler.EndpointService.CreateEndpoint(endpoint)
+	err = handler.saveEndpointAndUpdateAuthorizations(endpoint)
 	if err != nil {
-		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist endpoint inside the database", err}
+		return &httperror.HandlerError{http.StatusInternalServerError, "An error occured while trying to create the endpoint", err}
+	}
+
+	return nil
+}
+
+func (handler *Handler) saveEndpointAndUpdateAuthorizations(endpoint *portainer.Endpoint) error {
+	err := handler.EndpointService.CreateEndpoint(endpoint)
+	if err != nil {
+		return err
+	}
+
+	group, err := handler.EndpointGroupService.EndpointGroup(endpoint.GroupID)
+	if err != nil {
+		return err
+	}
+
+	if len(group.UserAccessPolicies) > 0 || len(group.TeamAccessPolicies) > 0 {
+		return handler.AuthorizationService.UpdateUsersAuthorizations()
 	}
 
 	return nil

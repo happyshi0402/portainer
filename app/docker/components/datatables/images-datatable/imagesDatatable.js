@@ -1,5 +1,5 @@
 angular.module('portainer.docker').component('imagesDatatable', {
-  templateUrl: 'app/docker/components/datatables/images-datatable/imagesDatatable.html',
+  templateUrl: './imagesDatatable.html',
   controller: 'ImagesDatatableController',
   bindings: {
     titleText: '@',
@@ -13,6 +13,7 @@ angular.module('portainer.docker').component('imagesDatatable', {
     downloadAction: '<',
     forceRemoveAction: '<',
     exportInProgress: '<',
-    offlineMode: '<'
+    offlineMode: '<',
+    refreshCallback: '<'
   }
 });

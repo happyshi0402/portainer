@@ -1,3 +1,5 @@
+import _ from 'lodash-es';
+
 angular.module('portainer.docker')
 .factory('InfoHelper', [function InfoHelperFactory() {
   'use strict';
@@ -11,7 +13,7 @@ angular.module('portainer.docker')
       agentProxy: false
     };
 
-    if (type === 2) {
+    if (type === 2 || type === 4) {
       mode.agentProxy = true;
     }
 

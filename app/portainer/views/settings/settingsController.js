@@ -3,7 +3,21 @@ angular.module('portainer.app')
 function ($scope, $state, Notifications, SettingsService, StateManager) {
 
   $scope.state = {
-    actionInProgress: false
+    actionInProgress: false,
+    availableEdgeAgentCheckinOptions: [
+      {
+        key: '5 seconds',
+        value: 5
+      },
+      {
+        key: '10 seconds',
+        value: 10
+      },
+      {
+        key: '30 seconds',
+        value: 30
+      },
+    ]
   };
 
   $scope.formValues = {
@@ -13,7 +27,8 @@ function ($scope, $state, Notifications, SettingsService, StateManager) {
     restrictPrivilegedMode: false,
     labelName: '',
     labelValue: '',
-    enableHostManagementFeatures: false
+    enableHostManagementFeatures: false,
+    enableVolumeBrowser: false,
   };
 
   $scope.removeFilteredContainerLabel = function(index) {
@@ -47,6 +62,7 @@ function ($scope, $state, Notifications, SettingsService, StateManager) {
 
     settings.AllowBindMountsForRegularUsers = !$scope.formValues.restrictBindMounts;
     settings.AllowPrivilegedModeForRegularUsers = !$scope.formValues.restrictPrivilegedMode;
+    settings.AllowVolumeBrowserForRegularUsers = $scope.formValues.enableVolumeBrowser;
     settings.EnableHostManagementFeatures = $scope.formValues.enableHostManagementFeatures;
 
     $scope.state.actionInProgress = true;
@@ -60,6 +76,7 @@ function ($scope, $state, Notifications, SettingsService, StateManager) {
       StateManager.updateLogo(settings.LogoURL);
       StateManager.updateSnapshotInterval(settings.SnapshotInterval);
       StateManager.updateEnableHostManagementFeatures(settings.EnableHostManagementFeatures);
+      StateManager.updateEnableVolumeBrowserForNonAdminUsers(settings.AllowVolumeBrowserForRegularUsers);
       $state.reload();
     })
     .catch(function error(err) {
@@ -83,6 +100,7 @@ function ($scope, $state, Notifications, SettingsService, StateManager) {
       }
       $scope.formValues.restrictBindMounts = !settings.AllowBindMountsForRegularUsers;
       $scope.formValues.restrictPrivilegedMode = !settings.AllowPrivilegedModeForRegularUsers;
+      $scope.formValues.enableVolumeBrowser = settings.AllowVolumeBrowserForRegularUsers;
       $scope.formValues.enableHostManagementFeatures = settings.EnableHostManagementFeatures;
     })
     .catch(function error(err) {

@@ -9,7 +9,7 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 type authenticatePayload struct {
@@ -52,7 +52,7 @@ func (handler *Handler) authenticate(w http.ResponseWriter, r *http.Request) *ht
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve a user with the specified username from the database", err}
 	}
 
-	if err == portainer.ErrObjectNotFound && settings.AuthenticationMethod == portainer.AuthenticationInternal {
+	if err == portainer.ErrObjectNotFound && (settings.AuthenticationMethod == portainer.AuthenticationInternal || settings.AuthenticationMethod == portainer.AuthenticationOAuth) {
 		return &httperror.HandlerError{http.StatusUnprocessableEntity, "Invalid credentials", portainer.ErrUnauthorized}
 	}
 
@@ -98,8 +98,9 @@ func (handler *Handler) authenticateLDAPAndCreateUser(w http.ResponseWriter, use
 	}
 
 	user := &portainer.User{
-		Username: username,
-		Role:     portainer.StandardUserRole,
+		Username:                username,
+		Role:                    portainer.StandardUserRole,
+		PortainerAuthorizations: portainer.DefaultPortainerAuthorizations(),
 	}
 
 	err = handler.UserService.CreateUser(user)
@@ -122,6 +123,10 @@ func (handler *Handler) writeToken(w http.ResponseWriter, user *portainer.User) 
 		Role:     user.Role,
 	}
 
+	return handler.persistAndWriteToken(w, tokenData)
+}
+
+func (handler *Handler) persistAndWriteToken(w http.ResponseWriter, tokenData *portainer.TokenData) *httperror.HandlerError {
 	token, err := handler.JWTService.GenerateToken(tokenData)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to generate JWT token", err}

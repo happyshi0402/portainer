@@ -1,7 +1,7 @@
 package jwt
 
 import (
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 
 	"fmt"
 	"time"
@@ -38,10 +38,10 @@ func NewService() (*Service, error) {
 func (service *Service) GenerateToken(data *portainer.TokenData) (string, error) {
 	expireToken := time.Now().Add(time.Hour * 8).Unix()
 	cl := claims{
-		int(data.ID),
-		data.Username,
-		int(data.Role),
-		jwt.StandardClaims{
+		UserID:   int(data.ID),
+		Username: data.Username,
+		Role:     int(data.Role),
+		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expireToken,
 		},
 	}

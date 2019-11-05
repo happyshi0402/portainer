@@ -1,3 +1,6 @@
+import { AccessControlFormData } from '../../../../portainer/components/accessControlForm/porAccessControlFormModel';
+import { MacvlanFormData } from '../../../components/network-macvlan-form/networkMacvlanFormModel';
+
 angular.module('portainer.docker')
   .controller('CreateNetworkController', ['$q', '$scope', '$state', 'PluginService', 'Notifications', 'NetworkService', 'LabelHelper', 'Authentication', 'ResourceControlService', 'FormValidator', 'HttpRequestHelper',
     function ($q, $scope, $state, PluginService, Notifications, NetworkService, LabelHelper, Authentication, ResourceControlService, FormValidator, HttpRequestHelper) {
@@ -126,6 +129,7 @@ angular.module('portainer.docker')
 
       function createNetwork(context) {
         HttpRequestHelper.setPortainerAgentTargetHeader(context.nodeName);
+        HttpRequestHelper.setPortainerAgentManagerOperation(context.managerOperation);
 
         $scope.state.actionInProgress = true;
         NetworkService.create(context.networkConfiguration)
@@ -154,7 +158,7 @@ angular.module('portainer.docker')
         var networkConfiguration = prepareConfiguration();
         var accessControlData = $scope.formValues.AccessControlData;
         var userDetails = Authentication.getUserDetails();
-        var isAdmin = userDetails.role === 1;
+        var isAdmin = Authentication.isAdmin();
 
         if (!validateForm(accessControlData, isAdmin)) {
           return;
@@ -162,11 +166,16 @@ angular.module('portainer.docker')
 
         var creationContext = {
           nodeName: $scope.formValues.NodeName,
+          managerOperation: false,
           networkConfiguration: networkConfiguration,
           userDetails: userDetails,
           accessControlData: accessControlData,
           reload: true
         };
+
+        if ($scope.applicationState.endpoint.mode.agentProxy && $scope.applicationState.endpoint.mode.provider === 'DOCKER_SWARM_MODE' && $scope.config.Driver === 'overlay') {
+          creationContext.managerOperation = true;
+        }
 
         if ($scope.config.Driver === 'macvlan') {
           if ($scope.formValues.Macvlan.Scope === 'local') {

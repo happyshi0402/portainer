@@ -1,5 +1,7 @@
+import moment from 'moment';
+
 angular.module('portainer.app').component('scheduleForm', {
-  templateUrl: 'app/portainer/components/forms/schedule-form/scheduleForm.html',
+  templateUrl: './scheduleForm.html',
   controller: function() {
     var ctrl = this;
 
@@ -8,26 +10,26 @@ angular.module('portainer.app').component('scheduleForm', {
     };
 
     ctrl.scheduleValues = [{
-        displayed: 'Every hour',
-        cron: '0 0 * * *'
-      },
+      displayed: 'Every hour',
+      cron: '0 * * * *'
+    },
       {
         displayed: 'Every 2 hours',
-        cron: '0 0 0/2 * *'
+        cron: '0 */2 * * *'
       }, {
         displayed: 'Every day',
-        cron: '0 0 0 * *'
+        cron: '0 0 * * *'
       }
     ];
 
     ctrl.formValues = {
       datetime: ctrl.model.CronExpression ? cronToDatetime(ctrl.model.CronExpression) : moment(),
       scheduleValue: ctrl.scheduleValues[0],
-      cronMethod: 'basic'
+      cronMethod: ctrl.model.Recurring ? 'advanced' : 'basic'
     };
 
     function cronToDatetime(cron) {
-      strings = cron.split(' ');
+      var strings = cron.split(' ');
       if (strings.length !== 5) {
         return moment();
       }
@@ -36,7 +38,7 @@ angular.module('portainer.app').component('scheduleForm', {
 
     function datetimeToCron(datetime) {
       var date = moment(datetime);
-      return '0 '.concat(date.minutes(), ' ', date.hours(), ' ', date.date(), ' ', (date.month() + 1));
+      return '0 '.concat(date.minutes(), ' ', date.hours(), ' ', date.date(), ' ', (date.month() + 1), ' *');
     }
 
     this.action = function() {

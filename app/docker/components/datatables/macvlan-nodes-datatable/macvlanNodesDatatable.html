@@ -8,7 +8,7 @@
       </div>
       <div class="searchBar">
         <i class="fa fa-search searchIcon" aria-hidden="true"></i>
-        <input type="text" class="searchInput" ng-model="$ctrl.state.textFilter" ng-change="$ctrl.onTextFilterChange()" placeholder="Search..." auto-focus>
+        <input type="text" class="searchInput" ng-model="$ctrl.state.textFilter" ng-change="$ctrl.onTextFilterChange()" placeholder="Search..." auto-focus ng-model-options="{ debounce: 300 }">
       </div>
       <div class="table-responsive">
         <table class="table table-hover nowrap-cells">
@@ -60,7 +60,7 @@
               ng-class="{active: item.Checked}">
               <td>
                 <span class="md-checkbox">
-                  <input id="select_{{ $index }}" type="checkbox" ng-model="item.Checked" ng-change="$ctrl.selectItem(item)" />
+                  <input id="select_{{ $index }}" type="checkbox" ng-model="item.Checked" ng-click="$ctrl.selectItem(item, $event)" />
                   <label for="select_{{ $index }}"></label>
                 </span>
                 <a ui-sref="docker.nodes.node({id: item.Id})" ng-if="$ctrl.accessToNodeDetails">{{ item.Hostname }}</a>

@@ -1,6 +1,6 @@
 angular.module('portainer.app')
-.controller('TeamsController', ['$q', '$scope', '$state', '$sanitize', 'TeamService', 'UserService', 'ModalService', 'Notifications', 'Authentication',
-function ($q, $scope, $state, $sanitize, TeamService, UserService, ModalService, Notifications, Authentication) {
+.controller('TeamsController', ['$q', '$scope', '$state', 'TeamService', 'UserService', 'ModalService', 'Notifications', 'Authentication',
+function ($q, $scope, $state, TeamService, UserService, ModalService, Notifications, Authentication) {
   $scope.state = {
     actionInProgress: false
   };
@@ -22,7 +22,7 @@ function ($q, $scope, $state, $sanitize, TeamService, UserService, ModalService,
   };
 
   $scope.addTeam = function() {
-    var teamName = $sanitize($scope.formValues.Name);
+    var teamName = $scope.formValues.Name;
     var leaderIds = [];
     angular.forEach($scope.formValues.Leaders, function(user) {
       leaderIds.push(user.Id);
@@ -75,14 +75,15 @@ function ($q, $scope, $state, $sanitize, TeamService, UserService, ModalService,
 
   function initView() {
     var userDetails = Authentication.getUserDetails();
-    var isAdmin = userDetails.role === 1 ? true: false;
+    var isAdmin = Authentication.isAdmin();
     $scope.isAdmin = isAdmin;
     $q.all({
       users: UserService.users(false),
       teams: isAdmin ? TeamService.teams() : UserService.userLeadingTeams(userDetails.ID)
     })
     .then(function success(data) {
-      $scope.teams = data.teams;
+      var teams = data.teams;
+      $scope.teams = teams;
       $scope.users = data.users;
     })
     .catch(function error(err) {

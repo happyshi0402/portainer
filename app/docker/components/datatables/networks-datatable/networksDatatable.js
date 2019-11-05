@@ -1,6 +1,6 @@
 angular.module('portainer.docker').component('networksDatatable', {
-  templateUrl: 'app/docker/components/datatables/networks-datatable/networksDatatable.html',
-  controller: 'GenericDatatableController',
+  templateUrl: './networksDatatable.html',
+  controller: 'NetworksDatatableController',
   bindings: {
     titleText: '@',
     titleIcon: '@',
@@ -11,6 +11,7 @@ angular.module('portainer.docker').component('networksDatatable', {
     showOwnershipColumn: '<',
     showHostColumn: '<',
     removeAction: '<',
-    offlineMode: '<'
+    offlineMode: '<',
+    refreshCallback: '<'
   }
 });

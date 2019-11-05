@@ -1,13 +1,12 @@
-angular.module('portainer.docker')
-  .controller('JobsDatatableController', ['$q', '$state', 'PaginationService', 'DatatableService', 'ContainerService', 'ModalService', 'Notifications',
-    function ($q, $state, PaginationService, DatatableService, ContainerService, ModalService, Notifications) {
-      var ctrl = this;
+import _ from 'lodash-es';
 
-      this.state = {
-        orderBy: this.orderBy,
-        paginatedItemLimit: PaginationService.getPaginationLimit(this.tableKey),
-        displayTextFilter: false
-      };
+angular.module('portainer.docker')
+  .controller('JobsDatatableController', ['$scope', '$controller', '$q', '$state', 'PaginationService', 'DatatableService', 'ContainerService', 'ModalService', 'Notifications',
+    function ($scope, $controller, $q, $state, PaginationService, DatatableService, ContainerService, ModalService, Notifications) {
+
+      angular.extend(this, $controller('GenericDatatableController', {$scope: $scope}));
+
+      var ctrl = this;
 
       this.filters = {
         state: {
@@ -15,20 +14,6 @@ angular.module('portainer.docker')
           enabled: false,
           values: []
         }
-      };
-
-      this.onTextFilterChange = function() {
-        DatatableService.setDataTableTextFilters(this.tableKey, this.state.textFilter);
-      };
-
-      this.changeOrderBy = function (orderField) {
-        this.state.reverseOrder = this.state.orderBy === orderField ? !this.state.reverseOrder : false;
-        this.state.orderBy = orderField;
-        DatatableService.setDataTableOrder(this.tableKey, orderField, this.state.reverseOrder);
-      };
-
-      this.changePaginationLimit = function () {
-        PaginationService.setPaginationLimit(this.tableKey, this.state.paginatedItemLimit);
       };
 
       this.applyFilters = function (value) {
@@ -73,7 +58,7 @@ angular.module('portainer.docker')
 
         for (var i = 0; i < datasetFilters.length; i++) {
           var filter = datasetFilters[i];
-          existingFilter = _.find(storedFilters, ['label', filter.label]);
+          var existingFilter = _.find(storedFilters, ['label', filter.label]);
           if (existingFilter && !existingFilter.display) {
             filter.display = existingFilter.display;
             this.filters.state.enabled = true;
@@ -119,31 +104,38 @@ angular.module('portainer.docker')
         });
       };
 
-      this.$onInit = function () {
-        setDefaults(this);
+      this.$onInit = function() {
+        this.setDefaults();
         this.prepareTableFromDataset();
 
+        this.state.orderBy = this.orderBy;
         var storedOrder = DatatableService.getDataTableOrder(this.tableKey);
         if (storedOrder !== null) {
           this.state.reverseOrder = storedOrder.reverse;
           this.state.orderBy = storedOrder.orderBy;
         }
 
-        var storedFilters = DatatableService.getDataTableFilters(this.tableKey);
-        if (storedFilters !== null) {
-          this.updateStoredFilters(storedFilters.state.values);
-        }
-        this.filters.state.open = false;
-
         var textFilter = DatatableService.getDataTableTextFilters(this.tableKey);
         if (textFilter !== null) {
           this.state.textFilter = textFilter;
+          this.onTextFilterChange();
         }
-      };
 
-      function setDefaults(ctrl) {
-        ctrl.showTextFilter = ctrl.showTextFilter ? ctrl.showTextFilter : false;
-        ctrl.state.reverseOrder = ctrl.reverseOrder ? ctrl.reverseOrder : false;
-      }
+        var storedFilters = DatatableService.getDataTableFilters(this.tableKey);
+        if (storedFilters !== null) {
+          this.filters = storedFilters;
+          this.updateStoredFilters(storedFilters.state.values);
+        }
+        if (this.filters && this.filters.state) {
+          this.filters.state.open = false;
+        }
+
+        var storedSettings = DatatableService.getDataTableSettings(this.tableKey);
+        if (storedSettings !== null) {
+          this.settings = storedSettings;
+          this.settings.open = false;
+        }
+        this.onSettingsRepeaterChange();
+      };
     }
   ]);

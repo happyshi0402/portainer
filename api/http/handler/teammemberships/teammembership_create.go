@@ -6,8 +6,8 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/http/security"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/http/security"
 )
 
 type teamMembershipCreatePayload struct {
@@ -68,6 +68,11 @@ func (handler *Handler) teamMembershipCreate(w http.ResponseWriter, r *http.Requ
 	err = handler.TeamMembershipService.CreateTeamMembership(membership)
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to persist team memberships inside the database", err}
+	}
+
+	err = handler.AuthorizationService.UpdateUsersAuthorizations()
+	if err != nil {
+		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update user authorizations", err}
 	}
 
 	return response.JSON(w, membership)

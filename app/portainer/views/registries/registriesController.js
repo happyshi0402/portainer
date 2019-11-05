@@ -1,6 +1,8 @@
+import _ from 'lodash-es';
+
 angular.module('portainer.app')
-.controller('RegistriesController', ['$q', '$scope', '$state', 'RegistryService', 'DockerHubService', 'ModalService', 'Notifications', 'ExtensionService',
-function ($q, $scope, $state, RegistryService, DockerHubService, ModalService, Notifications, ExtensionService) {
+.controller('RegistriesController', ['$q', '$scope', '$state', 'RegistryService', 'DockerHubService', 'ModalService', 'Notifications', 'ExtensionService', 'Authentication',
+function ($q, $scope, $state, RegistryService, DockerHubService, ModalService, Notifications, ExtensionService, Authentication) {
 
   $scope.state = {
     actionInProgress: false
@@ -9,6 +11,12 @@ function ($q, $scope, $state, RegistryService, DockerHubService, ModalService, N
   $scope.formValues = {
     dockerHubPassword: ''
   };
+
+  const nonBrowsableUrls = ['quay.io'];
+
+  $scope.canBrowse = function(item) {
+    return ! _.includes(nonBrowsableUrls, item.URL);
+  }
 
   $scope.updateDockerHub = function() {
     var dockerhub = $scope.dockerhub;
@@ -61,12 +69,16 @@ function ($q, $scope, $state, RegistryService, DockerHubService, ModalService, N
     $q.all({
       registries: RegistryService.registries(),
       dockerhub: DockerHubService.dockerhub(),
-      registryManagement: ExtensionService.registryManagementEnabled()
+      registryManagement: ExtensionService.extensionEnabled(ExtensionService.EXTENSIONS.REGISTRY_MANAGEMENT)
     })
     .then(function success(data) {
       $scope.registries = data.registries;
       $scope.dockerhub = data.dockerhub;
       $scope.registryManagementAvailable = data.registryManagement;
+      var authenticationEnabled = $scope.applicationState.application.authentication;
+      if (authenticationEnabled) {
+        $scope.isAdmin = Authentication.isAdmin();
+      }
     })
     .catch(function error(err) {
       $scope.registries = [];

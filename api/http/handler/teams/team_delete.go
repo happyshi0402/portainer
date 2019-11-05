@@ -6,7 +6,7 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 // DELETE request on /api/teams/:id
@@ -31,6 +31,11 @@ func (handler *Handler) teamDelete(w http.ResponseWriter, r *http.Request) *http
 	err = handler.TeamMembershipService.DeleteTeamMembershipByTeamID(portainer.TeamID(teamID))
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to delete associated team memberships from the database", err}
+	}
+
+	err = handler.AuthorizationService.RemoveTeamAccessPolicies(portainer.TeamID(teamID))
+	if err != nil {
+		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to clean-up team access policies", err}
 	}
 
 	return response.Empty(w)

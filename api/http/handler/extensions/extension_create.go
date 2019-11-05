@@ -8,7 +8,7 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 type extensionCreatePayload struct {
@@ -42,7 +42,7 @@ func (handler *Handler) extensionCreate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	for _, existingExtension := range extensions {
-		if existingExtension.ID == extensionID {
+		if existingExtension.ID == extensionID && existingExtension.Enabled {
 			return &httperror.HandlerError{http.StatusConflict, "Unable to enable extension", portainer.ErrExtensionAlreadyEnabled}
 		}
 	}
@@ -69,6 +69,13 @@ func (handler *Handler) extensionCreate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	extension.Enabled = true
+
+	if extension.ID == portainer.RBACExtension {
+		err = handler.upgradeRBACData()
+		if err != nil {
+			return &httperror.HandlerError{http.StatusInternalServerError, "An error occured during database update", err}
+		}
+	}
 
 	err = handler.ExtensionService.Persist(extension)
 	if err != nil {

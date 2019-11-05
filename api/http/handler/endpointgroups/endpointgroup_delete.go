@@ -6,7 +6,7 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 // DELETE request on /api/endpoint_groups/:id
@@ -37,13 +37,22 @@ func (handler *Handler) endpointGroupDelete(w http.ResponseWriter, r *http.Reque
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve endpoints from the database", err}
 	}
 
+	updateAuthorizations := false
 	for _, endpoint := range endpoints {
 		if endpoint.GroupID == portainer.EndpointGroupID(endpointGroupID) {
+			updateAuthorizations = true
 			endpoint.GroupID = portainer.EndpointGroupID(1)
 			err = handler.EndpointService.UpdateEndpoint(endpoint.ID, &endpoint)
 			if err != nil {
 				return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update endpoint", err}
 			}
+		}
+	}
+
+	if updateAuthorizations {
+		err = handler.AuthorizationService.UpdateUsersAuthorizations()
+		if err != nil {
+			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update user authorizations", err}
 		}
 	}
 
