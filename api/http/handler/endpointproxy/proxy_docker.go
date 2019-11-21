@@ -3,10 +3,11 @@ package endpointproxy
 import (
 	"errors"
 	"strconv"
+	"time"
 
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 
 	"net/http"
 )
@@ -24,19 +25,39 @@ func (handler *Handler) proxyRequestsToDockerAPI(w http.ResponseWriter, r *http.
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to find an endpoint with the specified identifier inside the database", err}
 	}
 
-	if endpoint.Status == portainer.EndpointStatusDown {
-		return &httperror.HandlerError{http.StatusServiceUnavailable, "Unable to query endpoint", errors.New("Endpoint is down")}
+	err = handler.requestBouncer.AuthorizedEndpointOperation(r, endpoint, true)
+	if err != nil {
+		return &httperror.HandlerError{http.StatusForbidden, "Permission denied to access endpoint", err}
 	}
 
-	err = handler.requestBouncer.EndpointAccess(r, endpoint)
-	if err != nil {
-		return &httperror.HandlerError{http.StatusForbidden, "Permission denied to access endpoint", portainer.ErrEndpointAccessDenied}
+	if endpoint.Type == portainer.EdgeAgentEnvironment {
+		if endpoint.EdgeID == "" {
+			return &httperror.HandlerError{http.StatusInternalServerError, "No Edge agent registered with the endpoint", errors.New("No agent available")}
+		}
+
+		tunnel := handler.ReverseTunnelService.GetTunnelDetails(endpoint.ID)
+		if tunnel.Status == portainer.EdgeAgentIdle {
+			handler.ProxyManager.DeleteEndpointProxy(endpoint)
+
+			err := handler.ReverseTunnelService.SetTunnelStatusToRequired(endpoint.ID)
+			if err != nil {
+				return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update tunnel status", err}
+			}
+
+			settings, err := handler.SettingsService.Settings()
+			if err != nil {
+				return &httperror.HandlerError{http.StatusInternalServerError, "Unable to retrieve settings from the database", err}
+			}
+
+			waitForAgentToConnect := time.Duration(settings.EdgeAgentCheckinInterval) * time.Second
+			time.Sleep(waitForAgentToConnect * 2)
+		}
 	}
 
 	var proxy http.Handler
-	proxy = handler.ProxyManager.GetProxy(string(endpointID))
+	proxy = handler.ProxyManager.GetEndpointProxy(endpoint)
 	if proxy == nil {
-		proxy, err = handler.ProxyManager.CreateAndRegisterProxy(endpoint)
+		proxy, err = handler.ProxyManager.CreateAndRegisterEndpointProxy(endpoint)
 		if err != nil {
 			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to create proxy", err}
 		}

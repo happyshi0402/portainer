@@ -1,4 +1,6 @@
-function ConfigViewModel(data) {
+import { ResourceControlViewModel } from 'Portainer/models/resourceControl/resourceControl';
+
+export function ConfigViewModel(data) {
   this.Id = data.ID;
   this.CreatedAt = data.CreatedAt;
   this.UpdatedAt = data.UpdatedAt;
@@ -7,9 +9,7 @@ function ConfigViewModel(data) {
   this.Labels = data.Spec.Labels;
   this.Data = atob(data.Spec.Data);
 
-  if (data.Portainer) {
-    if (data.Portainer.ResourceControl) {
-      this.ResourceControl = new ResourceControlViewModel(data.Portainer.ResourceControl);
-    }
+  if (data.Portainer && data.Portainer.ResourceControl) {
+    this.ResourceControl = new ResourceControlViewModel(data.Portainer.ResourceControl);
   }
 }

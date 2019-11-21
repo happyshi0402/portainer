@@ -1,3 +1,6 @@
+import { ServiceViewModel } from '../models/service';
+
+
 angular.module('portainer.docker')
 .factory('ServiceService', ['$q', 'Service', 'ServiceHelper', 'TaskService', 'ResourceControlService', 'LogHelper',
 function ServiceServiceFactory($q, Service, ServiceHelper, TaskService, ResourceControlService, LogHelper) {
@@ -40,13 +43,12 @@ function ServiceServiceFactory($q, Service, ServiceHelper, TaskService, Resource
     var deferred = $q.defer();
 
     Service.remove({id: service.Id}).$promise
-    .then(function success() {
-      if (service.ResourceControl && service.ResourceControl.Type === 2) {
-        return ResourceControlService.deleteResourceControl(service.ResourceControl.Id);
+    .then(function success(data) {
+      if (data.message) {
+        deferred.reject({ msg: data.message, err: data.message });
+      } else {
+        deferred.resolve();
       }
-    })
-    .then(function success() {
-      deferred.resolve();
     })
     .catch(function error(err) {
       deferred.reject({ msg: 'Unable to remove service', err: err });
@@ -55,8 +57,17 @@ function ServiceServiceFactory($q, Service, ServiceHelper, TaskService, Resource
     return deferred.promise;
   };
 
-  service.update = function(service, config) {
-    return Service.update({ id: service.Id, version: service.Version }, config).$promise;
+  service.update = function(serv, config, rollback) {
+    return service.service(serv.Id).then((data) => {
+      const params = {
+        id: serv.Id,
+        version: data.Version
+      };
+      if (rollback) {
+        params.rollback = rollback
+      }
+      return Service.update(params, config).$promise;
+    });
   };
 
   service.logs = function(id, stdout, stderr, timestamps, since, tail) {

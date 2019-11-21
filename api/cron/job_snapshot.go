@@ -3,7 +3,7 @@ package cron
 import (
 	"log"
 
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 // SnapshotJobRunner is used to run a SnapshotJob
@@ -53,7 +53,7 @@ func (runner *SnapshotJobRunner) Run() {
 		}
 
 		for _, endpoint := range endpoints {
-			if endpoint.Type == portainer.AzureEnvironment {
+			if endpoint.Type == portainer.AzureEnvironment || endpoint.Type == portainer.EdgeAgentEnvironment {
 				continue
 			}
 

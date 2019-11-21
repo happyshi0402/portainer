@@ -1,3 +1,6 @@
+import _ from 'lodash-es';
+import { RegistryViewModel, RegistryCreateRequest } from '../../models/registry';
+
 angular.module('portainer.app')
 .factory('RegistryService', ['$q', 'Registries', 'DockerHubService', 'RegistryHelper', 'ImageHelper', 'FileUploadService', function RegistryServiceFactory($q, Registries, DockerHubService, RegistryHelper, ImageHelper, FileUploadService) {
   'use strict';
@@ -42,8 +45,8 @@ angular.module('portainer.app')
     return btoa(JSON.stringify(credentials));
   };
 
-  service.updateAccess = function(id, authorizedUserIDs, authorizedTeamIDs) {
-    return Registries.updateAccess({id: id}, {authorizedUsers: authorizedUserIDs, authorizedTeams: authorizedTeamIDs}).$promise;
+  service.updateAccess = function(id, userAccessPolicies, teamAccessPolicies) {
+    return Registries.updateAccess({id: id}, {UserAccessPolicies: userAccessPolicies, TeamAccessPolicies: teamAccessPolicies}).$promise;
   };
 
   service.deleteRegistry = function(id) {
@@ -61,6 +64,19 @@ angular.module('portainer.app')
   service.createRegistry = function(model) {
     var payload = new RegistryCreateRequest(model);
     return Registries.create(payload).$promise;
+  };
+
+  service.createGitlabRegistries = function(model, projects) {
+    const promises = [];
+    _.forEach(projects, (p) => {
+      const m = model;
+      m.Name = p.PathWithNamespace;
+      m.Gitlab.ProjectId = p.Id;
+      m.Password = m.Token;
+      const payload = new RegistryCreateRequest(m);
+      promises.push(Registries.create(payload).$promise);
+    });
+    return $q.all(promises);
   };
 
   service.retrieveRegistryFromRepository = function(repository) {

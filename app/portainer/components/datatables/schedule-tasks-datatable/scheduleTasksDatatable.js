@@ -1,5 +1,5 @@
 angular.module('portainer.docker').component('scheduleTasksDatatable', {
-  templateUrl: 'app/portainer/components/datatables/schedule-tasks-datatable/scheduleTasksDatatable.html',
+  templateUrl: './scheduleTasksDatatable.html',
   controller: 'GenericDatatableController',
   bindings: {
     titleText: '@',
@@ -8,6 +8,7 @@ angular.module('portainer.docker').component('scheduleTasksDatatable', {
     tableKey: '@',
     orderBy: '@',
     reverseOrder: '<',
-    goToContainerLogs: '<'
+    goToContainerLogs: '<',
+    getEdgeTaskLogs: '<'
   }
 });

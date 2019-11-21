@@ -1,14 +1,19 @@
+import _ from 'lodash-es';
+import { ResourceControlOwnership as RCO } from 'Portainer/models/resourceControl/resourceControlOwnership';
+
 angular.module('portainer.app')
 .controller('porAccessControlFormController', ['$q', 'UserService', 'TeamService', 'Notifications', 'Authentication', 'ResourceControlService',
 function ($q, UserService, TeamService, Notifications, Authentication, ResourceControlService) {
   var ctrl = this;
 
+  ctrl.RCO = RCO;
+
   ctrl.availableTeams = [];
   ctrl.availableUsers = [];
 
   function setOwnership(resourceControl, isAdmin) {
-    if (isAdmin && resourceControl.Ownership === 'private') {
-      ctrl.formData.Ownership  = 'restricted';
+    if (isAdmin && resourceControl.Ownership === RCO.PRIVATE) {
+      ctrl.formData.Ownership  = RCO.RESTRICTED;
     } else {
       ctrl.formData.Ownership  = resourceControl.Ownership;
     }
@@ -31,12 +36,11 @@ function ($q, UserService, TeamService, Notifications, Authentication, ResourceC
   }
 
   function initComponent() {
-    var userDetails = Authentication.getUserDetails();
-    var isAdmin = userDetails.role === 1 ? true: false;
+    var isAdmin = Authentication.isAdmin();
     ctrl.isAdmin = isAdmin;
 
     if (isAdmin) {
-      ctrl.formData.Ownership = 'administrators';
+      ctrl.formData.Ownership = ctrl.RCO.ADMINISTRATORS;
     }
 
     $q.all({

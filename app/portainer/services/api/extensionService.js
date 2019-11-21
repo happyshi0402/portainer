@@ -1,21 +1,43 @@
+import _ from 'lodash-es';
+import { ExtensionViewModel } from '../../models/extension';
+
 angular.module('portainer.app')
-.factory('ExtensionService', ['$q', 'Extension', function ExtensionServiceFactory($q, Extension) {
+.factory('ExtensionService', ['$q', 'Extension', 'StateManager', '$async', 'FileUploadService',
+function ExtensionServiceFactory($q, Extension, StateManager, $async, FileUploadService) {
   'use strict';
   var service = {};
 
-  service.enable = function(license) {
-    return Extension.create({ license: license }).$promise;
-  };
+  service.EXTENSIONS = Object.freeze({
+    REGISTRY_MANAGEMENT: 1,
+    OAUTH_AUTHENTICATION: 2,
+    RBAC: 3
+  });
 
-  service.update = function(id, version) {
+  service.enable = enable;
+  service.update = update;
+  service.delete = _delete;
+  service.extensions = extensions;
+  service.extension = extension;
+  service.extensionEnabled = extensionEnabled;
+  service.retrieveAndSaveEnabledExtensions = retrieveAndSaveEnabledExtensions;
+
+  function enable(license, extensionFile) {
+    if (extensionFile) {
+      return FileUploadService.uploadExtension(license, extensionFile);
+    } else {
+      return Extension.create({ license: license }).$promise;
+    }
+  }
+
+  function update(id, version) {
     return Extension.update({ id: id, version: version }).$promise;
-  };
+  }
 
-  service.delete = function(id) {
+  function _delete(id) {
     return Extension.delete({ id: id }).$promise;
-  };
+  }
 
-  service.extensions = function(store) {
+  function extensions(store) {
     var deferred = $q.defer();
 
     Extension.query({ store: store }).$promise
@@ -30,9 +52,9 @@ angular.module('portainer.app')
     });
 
     return deferred.promise;
-  };
+  }
 
-  service.extension = function(id) {
+  function extension(id) {
     var deferred = $q.defer();
 
     Extension.get({ id: id }).$promise
@@ -45,22 +67,31 @@ angular.module('portainer.app')
     });
 
     return deferred.promise;
-  };
+  }
 
-  service.registryManagementEnabled = function() {
-    var deferred = $q.defer();
+  function extensionEnabled(extensionId) {
+    return $async(extensionsEnabledAsync, extensionId)
+  }
 
-    service.extensions(false)
-    .then(function onSuccess(extensions) {
-      var extensionAvailable = _.find(extensions, { Id: 1, Enabled: true }) ? true : false;
-      deferred.resolve(extensionAvailable);
-    })
-    .catch(function onError(err) {
-      deferred.reject(err);
-    });
+  async function extensionsEnabledAsync(extensionId) {
+    if (extensionId === service.EXTENSIONS.RBAC) {
+      return StateManager.getExtension(extensionId) ? true : false;
+    } else {
+      const extensions = await service.extensions(false);
+      const extension = _.find(extensions, (ext) => ext.Id === extensionId);
+      return extension ? extension.Enabled : false;
+    }
+  }
 
-    return deferred.promise;
-  };
+  function retrieveAndSaveEnabledExtensions() {
+    return $async(retrieveAndSaveEnabledExtensionsAsync)
+  }
+
+  async function retrieveAndSaveEnabledExtensionsAsync() {
+    const extensions = await service.extensions(false);
+    _.forEach(extensions, (ext) => delete ext.License);
+    StateManager.saveExtensions(extensions);
+  }
 
   return service;
 }]);

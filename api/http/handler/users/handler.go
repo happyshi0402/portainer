@@ -2,8 +2,8 @@ package users
 
 import (
 	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/http/security"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/http/security"
 
 	"net/http"
 
@@ -23,6 +23,7 @@ type Handler struct {
 	ResourceControlService portainer.ResourceControlService
 	CryptoService          portainer.CryptoService
 	SettingsService        portainer.SettingsService
+	AuthorizationService   *portainer.AuthorizationService
 }
 
 // NewHandler creates a handler to manage user operations.
@@ -31,17 +32,17 @@ func NewHandler(bouncer *security.RequestBouncer, rateLimiter *security.RateLimi
 		Router: mux.NewRouter(),
 	}
 	h.Handle("/users",
-		bouncer.RestrictedAccess(httperror.LoggerHandler(h.userCreate))).Methods(http.MethodPost)
+		bouncer.AdminAccess(httperror.LoggerHandler(h.userCreate))).Methods(http.MethodPost)
 	h.Handle("/users",
 		bouncer.RestrictedAccess(httperror.LoggerHandler(h.userList))).Methods(http.MethodGet)
 	h.Handle("/users/{id}",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.userInspect))).Methods(http.MethodGet)
+		bouncer.RestrictedAccess(httperror.LoggerHandler(h.userInspect))).Methods(http.MethodGet)
 	h.Handle("/users/{id}",
 		bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.userUpdate))).Methods(http.MethodPut)
 	h.Handle("/users/{id}",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.userDelete))).Methods(http.MethodDelete)
+		bouncer.AdminAccess(httperror.LoggerHandler(h.userDelete))).Methods(http.MethodDelete)
 	h.Handle("/users/{id}/memberships",
-		bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.userMemberships))).Methods(http.MethodGet)
+		bouncer.RestrictedAccess(httperror.LoggerHandler(h.userMemberships))).Methods(http.MethodGet)
 	h.Handle("/users/{id}/passwd",
 		rateLimiter.LimitAccess(bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.userUpdatePassword)))).Methods(http.MethodPut)
 	h.Handle("/users/admin/check",

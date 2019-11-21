@@ -1,50 +1,53 @@
 angular.module('portainer.app')
-.factory('Authentication', ['$q', 'Auth', 'jwtHelper', 'LocalStorage', 'StateManager', 'EndpointProvider', function AuthenticationFactory($q, Auth, jwtHelper, LocalStorage, StateManager, EndpointProvider) {
+.factory('Authentication', [
+'$async', 'Auth', 'OAuth', 'jwtHelper', 'LocalStorage', 'StateManager', 'EndpointProvider', 'UserService',
+function AuthenticationFactory($async, Auth, OAuth, jwtHelper, LocalStorage, StateManager, EndpointProvider, UserService) {
   'use strict';
 
   var service = {};
   var user = {};
 
   service.init = init;
+  service.OAuthLogin = OAuthLogin;
   service.login = login;
   service.logout = logout;
   service.isAuthenticated = isAuthenticated;
   service.getUserDetails = getUserDetails;
+  service.isAdmin = isAdmin;
+  service.hasAuthorizations = hasAuthorizations;
+  service.retrievePermissions = retrievePermissions;
 
   function init() {
     var jwt = LocalStorage.getJWT();
 
     if (jwt) {
-      var tokenPayload = jwtHelper.decodeToken(jwt);
-      user.username = tokenPayload.username;
-      user.ID = tokenPayload.id;
-      user.role = tokenPayload.role;
+      setUser(jwt);
     }
   }
 
+  async function OAuthLoginAsync(code) {
+    const response = await OAuth.validate({ code: code }).$promise;
+    setUser(response.jwt);
+  }
+
+  function OAuthLogin(code) {
+    return $async(OAuthLoginAsync, code)
+  }
+
+  async function loginAsync(username, password) {
+    const response = await Auth.login({ username: username, password: password }).$promise;
+    setUser(response.jwt);
+  }
+
   function login(username, password) {
-    var deferred = $q.defer();
-
-    Auth.login({username: username, password: password}).$promise
-    .then(function success(data) {
-      LocalStorage.storeJWT(data.jwt);
-      var tokenPayload = jwtHelper.decodeToken(data.jwt);
-      user.username = username;
-      user.ID = tokenPayload.id;
-      user.role = tokenPayload.role;
-      deferred.resolve();
-    })
-    .catch(function error() {
-      deferred.reject();
-    });
-
-    return deferred.promise;
+    return $async(loginAsync, username, password);
   }
 
   function logout() {
     StateManager.clean();
     EndpointProvider.clean();
     LocalStorage.clean();
+    LocalStorage.storeLoginStateUUID('');
   }
 
   function isAuthenticated() {
@@ -54,6 +57,46 @@ angular.module('portainer.app')
 
   function getUserDetails() {
     return user;
+  }
+
+  function retrievePermissions() {
+    return UserService.user(user.ID)
+    .then((data) => {
+      user.endpointAuthorizations = data.EndpointAuthorizations;
+      user.portainerAuthorizations = data.PortainerAuthorizations;
+    });
+  }
+
+  function setUser(jwt) {
+    LocalStorage.storeJWT(jwt);
+    var tokenPayload = jwtHelper.decodeToken(jwt);
+    user.username = tokenPayload.username;
+    user.ID = tokenPayload.id;
+    user.role = tokenPayload.role;
+  }
+
+  function isAdmin() {
+    if (user.role === 1) {
+      return true;
+    }
+    return false;
+  }
+
+  function hasAuthorizations(authorizations) {
+    const endpointId = EndpointProvider.endpointID();
+    if (isAdmin()) {
+      return true;
+    }
+    if (!user.endpointAuthorizations || (user.endpointAuthorizations && !user.endpointAuthorizations[endpointId])) {
+      return false;
+    }
+    for (var i = 0; i < authorizations.length; i++) {
+      var authorization = authorizations[i];
+      if (user.endpointAuthorizations[endpointId][authorization]) {
+        return true;
+      }
+    }
+    return false;
   }
 
   return service;

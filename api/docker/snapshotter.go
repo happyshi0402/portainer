@@ -1,7 +1,7 @@
 package docker
 
 import (
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 // Snapshotter represents a service used to create endpoint snapshots
@@ -24,5 +24,5 @@ func (snapshotter *Snapshotter) CreateSnapshot(endpoint *portainer.Endpoint) (*p
 	}
 	defer cli.Close()
 
-	return snapshot(cli)
+	return snapshot(cli, endpoint)
 }

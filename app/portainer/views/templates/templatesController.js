@@ -1,3 +1,6 @@
+import _ from 'lodash-es';
+import { AccessControlFormData } from '../../components/accessControlForm/porAccessControlFormModel';
+
 angular.module('portainer.app')
 .controller('TemplatesController', ['$scope', '$q', '$state', '$transition$', '$anchorScroll', 'ContainerService', 'ImageService', 'NetworkService', 'TemplateService', 'TemplateHelper', 'VolumeService', 'Notifications', 'ResourceControlService', 'Authentication', 'FormValidator', 'SettingsService', 'StackService', 'EndpointProvider', 'ModalService',
 function ($scope, $q, $state, $transition$, $anchorScroll, ContainerService, ImageService, NetworkService, TemplateService, TemplateHelper, VolumeService, Notifications, ResourceControlService, Authentication, FormValidator, SettingsService, StackService, EndpointProvider, ModalService) {
@@ -76,8 +79,8 @@ function ($scope, $q, $state, $transition$, $anchorScroll, ContainerService, Ima
       return ContainerService.createAndStartContainer(templateConfiguration);
     })
     .then(function success(data) {
-      var containerIdentifier = data.Id;
-      return ResourceControlService.applyResourceControl('container', containerIdentifier, userId, accessControlData, generatedVolumeIds);
+      const resourceControl = data.Portainer.ResourceControl;
+      return ResourceControlService.applyResourceControl(userId, accessControlData, resourceControl, generatedVolumeIds);
     })
     .then(function success() {
       Notifications.success('Container successfully created');
@@ -108,8 +111,9 @@ function ($scope, $q, $state, $transition$, $anchorScroll, ContainerService, Ima
 
     var endpointId = EndpointProvider.endpointID();
     StackService.createComposeStackFromGitRepository(stackName, repositoryOptions, template.Env, endpointId)
-    .then(function success() {
-      return ResourceControlService.applyResourceControl('stack', stackName, userId, accessControlData, []);
+    .then(function success(data) {
+      const resourceControl = data.Portainer.ResourceControl;
+      return ResourceControlService.applyResourceControl(userId, accessControlData, resourceControl);
     })
     .then(function success() {
       Notifications.success('Stack successfully deployed');
@@ -145,8 +149,9 @@ function ($scope, $q, $state, $transition$, $anchorScroll, ContainerService, Ima
 
     var endpointId = EndpointProvider.endpointID();
     StackService.createSwarmStackFromGitRepository(stackName, repositoryOptions, env, endpointId)
-    .then(function success() {
-      return ResourceControlService.applyResourceControl('stack', stackName, userId, accessControlData, []);
+    .then(function success(data) {
+      const resourceControl = data.Portainer.ResourceControl;
+      return ResourceControlService.applyResourceControl(userId, accessControlData, resourceControl);
     })
     .then(function success() {
       Notifications.success('Stack successfully deployed');
@@ -164,9 +169,8 @@ function ($scope, $q, $state, $transition$, $anchorScroll, ContainerService, Ima
     var userDetails = Authentication.getUserDetails();
     var userId = userDetails.ID;
     var accessControlData = $scope.formValues.AccessControlData;
-    var isAdmin = userDetails.role === 1;
 
-    if (!validateForm(accessControlData, isAdmin)) {
+    if (!validateForm(accessControlData, $scope.isAdmin)) {
       return;
     }
 
@@ -233,8 +237,7 @@ function ($scope, $q, $state, $transition$, $anchorScroll, ContainerService, Ima
   }
 
   function initView() {
-    var userDetails = Authentication.getUserDetails();
-    $scope.isAdmin = userDetails.role === 1;
+    $scope.isAdmin = Authentication.isAdmin();
 
     var endpointMode = $scope.applicationState.endpoint.mode;
     var apiVersion = $scope.applicationState.endpoint.apiVersion;

@@ -14,6 +14,12 @@ angular.module('portainer.app')
     getEndpointPublicURL: function() {
       return localStorageService.get('ENDPOINT_PUBLIC_URL');
     },
+    storeLoginStateUUID: function(uuid) {
+      localStorageService.cookie.set('LOGIN_STATE_UUID', uuid);
+    },
+    getLoginStateUUID: function() {
+      return localStorageService.cookie.get('LOGIN_STATE_UUID');
+    },
     storeOfflineMode: function(isOffline) {
       localStorageService.set('ENDPOINT_OFFLINE_MODE', isOffline);
     },
@@ -44,6 +50,12 @@ angular.module('portainer.app')
     getUIState: function() {
       return localStorageService.cookie.get('UI_STATE');
     },
+    storeExtensionState: function(state) {
+      localStorageService.set('EXTENSION_STATE', state);
+    },
+    getExtensionState: function() {
+      return localStorageService.get('EXTENSION_STATE');
+    },
     storeJWT: function(jwt) {
       localStorageService.set('JWT', jwt);
     },
@@ -54,40 +66,40 @@ angular.module('portainer.app')
       localStorageService.remove('JWT');
     },
     storePaginationLimit: function(key, count) {
-      localStorageService.cookie.set('pagination_' + key, count);
+      localStorageService.cookie.set('datatable_pagination_' + key, count);
     },
     getPaginationLimit: function(key) {
-      return localStorageService.cookie.get('pagination_' + key);
+      return localStorageService.cookie.get('datatable_pagination_' + key);
     },
     getDataTableOrder: function(key) {
-      return localStorageService.get('datatable_order_' + key);
+      return localStorageService.cookie.get('datatable_order_' + key);
     },
     storeDataTableOrder: function(key, data) {
-      localStorageService.set('datatable_order_' + key, data);
+      localStorageService.cookie.set('datatable_order_' + key, data);
     },
     getDataTableTextFilters: function(key) {
-      return localStorageService.get('datatable_text_filter_' + key);
+      return localStorageService.cookie.get('datatable_text_filter_' + key);
     },
     storeDataTableTextFilters: function(key, data) {
-      localStorageService.set('datatable_text_filter_' + key, data);
+      localStorageService.cookie.set('datatable_text_filter_' + key, data);
     },
     getDataTableFilters: function(key) {
-      return localStorageService.get('datatable_filters_' + key);
+      return localStorageService.cookie.get('datatable_filters_' + key);
     },
     storeDataTableFilters: function(key, data) {
-      localStorageService.set('datatable_filters_' + key, data);
+      localStorageService.cookie.set('datatable_filters_' + key, data);
     },
     getDataTableSettings: function(key) {
-      return localStorageService.get('datatable_settings_' + key);
+      return localStorageService.cookie.get('datatable_settings_' + key);
     },
     storeDataTableSettings: function(key, data) {
-      localStorageService.set('datatable_settings_' + key, data);
+      localStorageService.cookie.set('datatable_settings_' + key, data);
     },
     getDataTableExpandedItems: function(key) {
-      return localStorageService.get('datatable_expandeditems_' + key);
+      return localStorageService.cookie.get('datatable_expandeditems_' + key);
     },
     storeDataTableExpandedItems: function(key, data) {
-      localStorageService.set('datatable_expandeditems_' + key, data);
+      localStorageService.cookie.set('datatable_expandeditems_' + key, data);
     },
     getDataTableSelectedItems: function(key) {
       return localStorageService.get('datatable_selecteditems_' + key);
@@ -96,16 +108,16 @@ angular.module('portainer.app')
       localStorageService.set('datatable_selecteditems_' + key, data);
     },
     storeSwarmVisualizerSettings: function(key, data) {
-      localStorageService.set('swarmvisualizer_' + key, data);
+      localStorageService.cookie.set('swarmvisualizer_' + key, data);
     },
     getSwarmVisualizerSettings: function(key) {
-      return localStorageService.get('swarmvisualizer_' + key);
+      return localStorageService.cookie.get('swarmvisualizer_' + key);
     },
     storeColumnVisibilitySettings: function(key, data) {
-      localStorageService.set('col_visibility_' + key, data);
+      localStorageService.cookie.set('col_visibility_' + key, data);
     },
     getColumnVisibilitySettings: function(key) {
-      return localStorageService.get('col_visibility_' + key);
+      return localStorageService.cookie.get('col_visibility_' + key);
     },
     storeJobImage: function(data) {
       localStorageService.set('job_image', data);

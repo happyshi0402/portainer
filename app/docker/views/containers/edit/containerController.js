@@ -1,6 +1,8 @@
+import moment from 'moment';
+
 angular.module('portainer.docker')
-.controller('ContainerController', ['$q', '$scope', '$state','$transition$', '$filter', 'Commit', 'ContainerHelper', 'ContainerService', 'ImageHelper', 'NetworkService', 'Notifications', 'ModalService', 'ResourceControlService', 'RegistryService', 'ImageService', 'HttpRequestHelper',
-function ($q, $scope, $state, $transition$, $filter, Commit, ContainerHelper, ContainerService, ImageHelper, NetworkService, Notifications, ModalService, ResourceControlService, RegistryService, ImageService, HttpRequestHelper) {
+.controller('ContainerController', ['$q', '$scope', '$state','$transition$', '$filter', 'Commit', 'ContainerHelper', 'ContainerService', 'ImageHelper', 'NetworkService', 'Notifications', 'ModalService', 'ResourceControlService', 'RegistryService', 'ImageService', 'HttpRequestHelper', 'Authentication',
+function ($q, $scope, $state, $transition$, $filter, Commit, ContainerHelper, ContainerService, ImageHelper, NetworkService, Notifications, ModalService, ResourceControlService, RegistryService, ImageService, HttpRequestHelper, Authentication) {
   $scope.activityTime = 0;
   $scope.portBindings = [];
 
@@ -149,15 +151,15 @@ function ($q, $scope, $state, $transition$, $filter, Commit, ContainerHelper, Co
 
   $scope.commit = function () {
     var image = $scope.config.Image;
+    $scope.config.Image = '';
     var registry = $scope.config.Registry;
     var imageConfig = ImageHelper.createImageConfigForCommit(image, registry.URL);
     Commit.commitContainer({id: $transition$.params().id, tag: imageConfig.tag, repo: imageConfig.repo}, function () {
       update();
-      Notifications.success('Container commited', $transition$.params().id);
-      $scope.config.Image = '';
+      Notifications.success('Image created', $transition$.params().id);
     }, function (e) {
       update();
-      Notifications.error('Failure', e, 'Unable to commit container');
+      Notifications.error('Failure', e, 'Unable to create image');
     });
   };
 
@@ -203,7 +205,7 @@ function ($q, $scope, $state, $transition$, $filter, Commit, ContainerHelper, Co
       .then(setMainNetworkAndCreateContainer)
       .then(connectContainerToOtherNetworks)
       .then(startContainerIfNeeded)
-      .then(createResourceControlIfNeeded)
+      .then(createResourceControl)
       .then(deleteOldContainer)
       .then(notifyAndChangeView)
       .catch(notifyOnError);
@@ -274,19 +276,11 @@ function ($q, $scope, $state, $transition$, $filter, Commit, ContainerHelper, Co
       );
     }
 
-    function createResourceControlIfNeeded(newContainer) {
-      if (!container.ResourceControl) {
-        return $q.when();
-      }
-      var containerIdentifier = newContainer.Id;
-      var resourceControl = container.ResourceControl;
-      var users = resourceControl.UserAccesses.map(function(u) {
-        return u.UserId;
-      });
-      var teams = resourceControl.TeamAccesses.map(function(t) {
-        return t.TeamId;
-      });
-      return ResourceControlService.createResourceControl(resourceControl.Public, users, teams, containerIdentifier, 'container', []);
+    function createResourceControl(newContainer) {
+      const userId = Authentication.getUserDetails().ID;
+      const oldResourceControl = container.ResourceControl;
+      const newResourceControl = newContainer.Portainer.ResourceControl;
+      return ResourceControlService.duplicateResourceControl(userId, oldResourceControl, newResourceControl);
     }
 
     function notifyAndChangeView() {

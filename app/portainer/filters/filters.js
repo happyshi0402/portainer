@@ -1,3 +1,9 @@
+import moment from 'moment';
+import _ from 'lodash-es';
+import filesize from 'filesize';
+
+import { ResourceControlOwnership as RCO } from 'Portainer/models/resourceControl/resourceControlOwnership';
+
 angular.module('portainer.app')
 .filter('truncate', function () {
   'use strict';
@@ -34,7 +40,7 @@ angular.module('portainer.app')
 .filter('capitalize', function () {
   'use strict';
   return function (text) {
-    return _.capitalize(text);
+    return text ? _.capitalize(text) : '';
   };
 })
 .filter('stripprotocol', function() {
@@ -102,6 +108,15 @@ angular.module('portainer.app')
     return '';
   };
 })
+.filter('labelsToStr', function () {
+  'use strict';
+  return function (arr, separator) {
+    if (arr) {
+      return _.join(arr.map((item) => item.key + ':' + item.value), separator);
+    }
+    return '';
+  };
+})
 .filter('endpointtypename', function () {
   'use strict';
   return function (type) {
@@ -111,6 +126,8 @@ angular.module('portainer.app')
       return 'Agent';
     } else if (type === 3) {
       return 'Azure ACI';
+    } else if (type === 4) {
+      return 'Edge Agent';
     }
     return '';
   };
@@ -120,6 +137,8 @@ angular.module('portainer.app')
   return function (type) {
     if (type === 3) {
       return 'fab fa-microsoft';
+    } else if (type === 4) {
+      return 'fa fa-cloud';
     }
     return 'fab fa-docker';
   };
@@ -128,11 +147,11 @@ angular.module('portainer.app')
   'use strict';
   return function (ownership) {
     switch (ownership) {
-      case 'private':
+      case RCO.PRIVATE:
         return 'fa fa-eye-slash';
-      case 'administrators':
+      case RCO.ADMINISTRATORS:
         return 'fa fa-eye-slash';
-      case 'restricted':
+      case RCO.RESTRICTED:
         return 'fa fa-users';
       default:
         return 'fa fa-eye';

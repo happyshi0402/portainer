@@ -1,7 +1,7 @@
 <div ng-if="service.ServiceMounts" id="service-mounts">
   <rd-widget>
     <rd-widget-header icon="fa-tasks" title-text="Mounts">
-      <div class="nopadding">
+      <div class="nopadding" authorization="DockerServiceUpdate">
         <a class="btn btn-default btn-sm pull-right" ng-click="isUpdating ||addMount(service)" ng-disabled="isUpdating">
           <i class="fa fa-plus-circle" aria-hidden="true"></i> mount
         </a>
@@ -30,7 +30,7 @@
               </select>
             </td>
             <td>
-              <select class="form-control" ng-model="mount.Source" ng-options="vol.Id|truncate:30 as vol.Id for vol in availableVolumes" ng-if="mount.Type === 'volume'">
+              <select class="form-control" ng-model="mount.Source" ng-options="vol.Id as ((vol.Id|truncate:30) + ' - ' + (vol.Driver|truncate:30))  for vol in availableVolumes" ng-if="mount.Type === 'volume'">
                 <option selected disabled hidden value="">Select a volume</option>
               </select>
               <input type="text" class="form-control" ng-model="mount.Source" placeholder="e.g. /tmp/portainer/data" ng-change="updateMount(service, mount)" ng-disabled="isUpdating || (!isAdmin && !allowBindMounts && mount.Type === 'bind')" ng-if="mount.Type === 'bind'">
@@ -41,7 +41,7 @@
             <td>
               <input type="checkbox" class="form-control" ng-model="mount.ReadOnly" ng-change="updateMount(service, mount)" ng-disabled="isUpdating">
             </td>
-            <td>
+            <td authorization="DockerServiceUpdate">
               <span class="input-group-btn">
                 <button class="btn btn-sm btn-danger" type="button" ng-click="removeMount(service, $index)" ng-disabled="isUpdating">
                   <i class="fa fa-trash" aria-hidden="true"></i>
@@ -52,7 +52,7 @@
         </tbody>
       </table>
     </rd-widget-body>
-    <rd-widget-footer>
+    <rd-widget-footer authorization="DockerServiceUpdate">
       <div class="btn-toolbar" role="toolbar">
         <div class="btn-group" role="group">
           <button type="button" class="btn btn-primary btn-sm" ng-disabled="!hasChanges(service, ['ServiceMounts'])" ng-click="updateService(service)">Apply changes</button>

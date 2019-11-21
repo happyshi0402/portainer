@@ -1,6 +1,10 @@
+import _ from 'lodash-es';
+import $ from 'jquery';
+import '@babel/polyfill'
+
 angular.module('portainer')
-.run(['$rootScope', '$state', 'Authentication', 'authManager', 'StateManager', 'EndpointProvider', 'Notifications', 'Analytics', 'cfpLoadingBar', '$transitions', 'HttpRequestHelper',
-function ($rootScope, $state, Authentication, authManager, StateManager, EndpointProvider, Notifications, Analytics, cfpLoadingBar, $transitions, HttpRequestHelper) {
+.run(['$rootScope', '$state', '$interval', 'LocalStorage', 'Authentication', 'authManager', 'StateManager', 'EndpointProvider', 'Notifications', 'Analytics', 'SystemService', 'cfpLoadingBar', '$transitions', 'HttpRequestHelper',
+function ($rootScope, $state, $interval, LocalStorage, Authentication, authManager, StateManager, EndpointProvider, Notifications, Analytics, SystemService, cfpLoadingBar, $transitions, HttpRequestHelper) {
   'use strict';
 
   EndpointProvider.initialize();
@@ -29,11 +33,31 @@ function ($rootScope, $state, Authentication, authManager, StateManager, Endpoin
     }
   };
 
-  $transitions.onBefore({ to: 'docker.**' }, function() {
+  $transitions.onBefore({}, function() {
     HttpRequestHelper.resetAgentHeaders();
+  });
+
+  // Keep-alive Edge endpoints by sending a ping request every minute
+  $interval(function() {
+    ping(EndpointProvider, SystemService);
+  }, 60 * 1000)
+
+  $(document).ajaxSend(function (event, jqXhr, jqOpts) {
+    const type = jqOpts.type === 'POST' || jqOpts.type === 'PUT' || jqOpts.type === 'PATCH';
+    const hasNoContentType = jqOpts.contentType !== 'application/json' && jqOpts.headers && !jqOpts.headers['Content-Type'];
+    if (type && hasNoContentType) {
+      jqXhr.setRequestHeader('Content-Type', 'application/json');
+    }
+    jqXhr.setRequestHeader('Authorization', 'Bearer ' + LocalStorage.getJWT());
   });
 }]);
 
+function ping(EndpointProvider, SystemService) {
+  let endpoint = EndpointProvider.currentEndpoint();
+  if (endpoint !== undefined && endpoint.Type === 4) {
+    SystemService.ping(endpoint.Id);
+  }
+}
 
 function initAuthentication(authManager, Authentication, $rootScope, $state) {
   authManager.checkAuthOnRefresh();
@@ -44,8 +68,8 @@ function initAuthentication(authManager, Authentication, $rootScope, $state) {
   // authManager.redirectWhenUnauthenticated() + unauthenticatedRedirector
   // to have more controls on which URL should trigger the unauthenticated state.
   $rootScope.$on('unauthenticated', function (event, data) {
-    if (!_.includes(data.config.url, '/v2/')) {
-      $state.go('portainer.auth', {error: 'Your session has expired'});
+    if (!_.includes(data.config.url, '/v2/') && !_.includes(data.config.url, '/api/v4/')) {
+      $state.go('portainer.auth', { error: 'Your session has expired' });
     }
   });
 }

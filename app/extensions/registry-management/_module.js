@@ -7,7 +7,7 @@ angular.module('portainer.extensions.registrymanagement', [])
     url: '/configure',
     views: {
       'content@': {
-        templateUrl: 'app/extensions/registry-management/views/configure/configureregistry.html',
+        templateUrl: './views/configure/configureregistry.html',
         controller: 'ConfigureRegistryController'
       }
     }
@@ -18,7 +18,7 @@ angular.module('portainer.extensions.registrymanagement', [])
     url: '/repositories',
     views: {
       'content@': {
-        templateUrl: 'app/extensions/registry-management/views/repositories/registryRepositories.html',
+        templateUrl: './views/repositories/registryRepositories.html',
         controller: 'RegistryRepositoriesController'
       }
     }
@@ -29,8 +29,19 @@ angular.module('portainer.extensions.registrymanagement', [])
     url: '/:repository',
     views: {
       'content@': {
-        templateUrl: 'app/extensions/registry-management/views/repositories/edit/registryRepository.html',
+        templateUrl: './views/repositories/edit/registryRepository.html',
         controller: 'RegistryRepositoryController'
+      }
+    }
+  };
+  var registryRepositoryTag = {
+    name: 'portainer.registries.registry.repository.tag',
+    url: '/:tag',
+    views: {
+      'content@': {
+        templateUrl: './views/repositories/tag/registryRepositoryTag.html',
+        controller: 'RegistryRepositoryTagController',
+        controllerAs: 'ctrl'
       }
     }
   };
@@ -38,4 +49,5 @@ angular.module('portainer.extensions.registrymanagement', [])
   $stateRegistryProvider.register(registryConfiguration);
   $stateRegistryProvider.register(registryRepositories);
   $stateRegistryProvider.register(registryRepositoryTags);
+  $stateRegistryProvider.register(registryRepositoryTag);
 }]);

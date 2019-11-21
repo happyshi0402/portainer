@@ -1,4 +1,6 @@
-function SecretViewModel(data) {
+import { ResourceControlViewModel } from 'Portainer/models/resourceControl/resourceControl';
+
+export function SecretViewModel(data) {
   this.Id = data.ID;
   this.CreatedAt = data.CreatedAt;
   this.UpdatedAt = data.UpdatedAt;

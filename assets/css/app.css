@@ -11,31 +11,10 @@ html, body, #page-wrapper, #content-wrapper, .page-content, #view {
   white-space: normal !important;
 }
 
-.messages {
-  max-height: 50px;
-  overflow-x: hidden;
-  overflow-y: scroll;
-}
-
-.legend .title {
-  padding: 0 0.3em;
-  margin: 0.5em;
-  border-style: solid;
-  border-width: 0 0 0 1em;
-}
-
-.logo {
-  display: inline;
-  max-width: 155px;
-  max-height: 55px;
-}
-
-.containerNameInput {
-  width: 85%;
-  border:none;
-  background:none;
-  border-bottom: 1px solid black;
-}
+.logo { display: inline; max-width: 155px; max-height: 55px; }
+.legend .title { padding: 0 0.3em; margin: 0.5em; border-style: solid; border-width: 0 0 0 1em; }
+.messages { max-height: 50px; overflow-x: hidden; overflow-y: scroll; }
+.containerNameInput { width: 85%; border:none; background:none; border-bottom: 1px solid black; }
 
 .containerNameInput:active, .containerNameInput:focus {
   outline:none;
@@ -83,6 +62,21 @@ a[ng-click]{
 .space-left {
   margin-left: 5px;
 }
+
+.portainer-disabled-link {
+  color: gray;
+  pointer-events: none;
+}
+
+.portainer-disabled-datatable {
+  color: gray;
+}
+
+.portainer-disabled-datatable a {
+  color: gray;
+  pointer-events: none;
+}
+
 
 .tooltip.portainer-tooltip .tooltip-inner {
   font-family: Montserrat;
@@ -148,6 +142,10 @@ a[ng-click]{
 .widget .widget-body table tbody td {
   white-space: normal;
   word-break: break-word;
+}
+
+.widget .widget-body table.description-table {
+  table-layout: fixed;
 }
 
 .template-widget {
@@ -253,7 +251,7 @@ a[ng-click]{
 
 .terminal-container {
   width: 100%;
-  padding: 10px 5px;
+  padding: 10px 0;
 }
 
 .interactive {
@@ -271,6 +269,12 @@ a[ng-click]{
   font-size: 12px;
   line-height: 1.5;
   border-radius: 3px;
+}
+
+.btn-datatable {
+  padding: 2.6px 7.8px 3.9px;
+  line-height: 1;
+  margin: 0px 0px 0px 0px;
 }
 
 @media screen and (min-width: 1107px) {
@@ -390,6 +394,14 @@ ul.sidebar .sidebar-list a.active {
   height: 100%;
   max-height: 35px;
   margin: 2px 0 2px 20px;
+}
+
+.sidebar-footer-content .update-notification {
+    font-size: 14px;
+    padding: 12px;
+    border-radius: 2px;
+    background-color: #FF851B;
+    margin-bottom: 5px;
 }
 
 .sidebar-footer-content .version {
@@ -556,6 +568,17 @@ ul.sidebar .sidebar-list .sidebar-sublist a.active {
   display: none;
 }
 
+.small-select {
+  display: inline-block;
+  padding: 0px 6px;
+  margin-left: 10px;
+  color: #555555;
+  background-color: #fff;
+  background-image: none;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
 .bootbox-form .checkbox i {
   margin-left: 21px;
 }
@@ -703,6 +726,17 @@ ul.sidebar .sidebar-list .sidebar-sublist a.active {
   font-size: 16px;
 }
 
+.visualizer_container .node .node_info .node_labels {
+  border-top: 1px solid #777;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.visualizer_container .node .node_info .node_label {
+  font-style: italic;
+  color: #787878;
+}
+
 .visualizer_container .node .tasks {
   display: flex;
   flex-direction: column;
@@ -799,6 +833,26 @@ ul.sidebar .sidebar-list .sidebar-sublist a.active {
   width: 50%;
   margin: 20px auto 10px auto;
 }
+
+.modal {
+  text-align: center;
+  padding: 0!important;
+}
+
+.modal::before {
+  content: '';
+  display: inline-block;
+  height: 100%;
+  vertical-align: middle;
+  margin-right: -4px;
+}
+
+.modal-dialog {
+  display: inline-block;
+  text-align: left;
+  vertical-align: middle;
+}
+
 
 /*bootbox override*/
 .modal-open {

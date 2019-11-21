@@ -7,8 +7,8 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/http/security"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/http/security"
 )
 
 type userCreatePayload struct {
@@ -58,8 +58,9 @@ func (handler *Handler) userCreate(w http.ResponseWriter, r *http.Request) *http
 	}
 
 	user = &portainer.User{
-		Username: payload.Username,
-		Role:     portainer.UserRole(payload.Role),
+		Username:                payload.Username,
+		Role:                    portainer.UserRole(payload.Role),
+		PortainerAuthorizations: portainer.DefaultPortainerAuthorizations(),
 	}
 
 	settings, err := handler.SettingsService.Settings()

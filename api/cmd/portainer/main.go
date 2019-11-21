@@ -1,27 +1,28 @@
-package main // import "github.com/portainer/portainer"
+package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/bolt"
-	"github.com/portainer/portainer/cli"
-	"github.com/portainer/portainer/cron"
-	"github.com/portainer/portainer/crypto"
-	"github.com/portainer/portainer/docker"
-	"github.com/portainer/portainer/exec"
-	"github.com/portainer/portainer/filesystem"
-	"github.com/portainer/portainer/git"
-	"github.com/portainer/portainer/http"
-	"github.com/portainer/portainer/http/client"
-	"github.com/portainer/portainer/jwt"
-	"github.com/portainer/portainer/ldap"
-	"github.com/portainer/portainer/libcompose"
+	"github.com/portainer/portainer/api/chisel"
 
-	"log"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/bolt"
+	"github.com/portainer/portainer/api/cli"
+	"github.com/portainer/portainer/api/cron"
+	"github.com/portainer/portainer/api/crypto"
+	"github.com/portainer/portainer/api/docker"
+	"github.com/portainer/portainer/api/exec"
+	"github.com/portainer/portainer/api/filesystem"
+	"github.com/portainer/portainer/api/git"
+	"github.com/portainer/portainer/api/http"
+	"github.com/portainer/portainer/api/http/client"
+	"github.com/portainer/portainer/api/jwt"
+	"github.com/portainer/portainer/api/ldap"
+	"github.com/portainer/portainer/api/libcompose"
 )
 
 func initCLI() *portainer.CLIFlags {
@@ -69,12 +70,12 @@ func initStore(dataStorePath string, fileService portainer.FileService) *bolt.St
 	return store
 }
 
-func initComposeStackManager(dataStorePath string) portainer.ComposeStackManager {
-	return libcompose.NewComposeStackManager(dataStorePath)
+func initComposeStackManager(dataStorePath string, reverseTunnelService portainer.ReverseTunnelService) portainer.ComposeStackManager {
+	return libcompose.NewComposeStackManager(dataStorePath, reverseTunnelService)
 }
 
-func initSwarmStackManager(assetsPath string, dataStorePath string, signatureService portainer.DigitalSignatureService, fileService portainer.FileService) (portainer.SwarmStackManager, error) {
-	return exec.NewSwarmStackManager(assetsPath, dataStorePath, signatureService, fileService)
+func initSwarmStackManager(assetsPath string, dataStorePath string, signatureService portainer.DigitalSignatureService, fileService portainer.FileService, reverseTunnelService portainer.ReverseTunnelService) (portainer.SwarmStackManager, error) {
+	return exec.NewSwarmStackManager(assetsPath, dataStorePath, signatureService, fileService, reverseTunnelService)
 }
 
 func initJWTService(authenticationEnabled bool) portainer.JWTService {
@@ -101,11 +102,11 @@ func initLDAPService() portainer.LDAPService {
 }
 
 func initGitService() portainer.GitService {
-	return &git.Service{}
+	return git.NewService()
 }
 
-func initClientFactory(signatureService portainer.DigitalSignatureService) *docker.ClientFactory {
-	return docker.NewClientFactory(signatureService)
+func initClientFactory(signatureService portainer.DigitalSignatureService, reverseTunnelService portainer.ReverseTunnelService) *docker.ClientFactory {
+	return docker.NewClientFactory(signatureService, reverseTunnelService)
 }
 
 func initSnapshotter(clientFactory *docker.ClientFactory) portainer.Snapshotter {
@@ -175,7 +176,7 @@ func loadEndpointSyncSystemSchedule(jobScheduler portainer.JobScheduler, schedul
 
 	endpointSyncJob := &portainer.EndpointSyncJob{}
 
-	endointSyncSchedule := &portainer.Schedule{
+	endpointSyncSchedule := &portainer.Schedule{
 		ID:              portainer.ScheduleID(scheduleService.GetNextIdentifier()),
 		Name:            "system_endpointsync",
 		CronExpression:  "@every " + *flags.SyncInterval,
@@ -186,17 +187,17 @@ func loadEndpointSyncSystemSchedule(jobScheduler portainer.JobScheduler, schedul
 	}
 
 	endpointSyncJobContext := cron.NewEndpointSyncJobContext(endpointService, *flags.ExternalEndpoints)
-	endpointSyncJobRunner := cron.NewEndpointSyncJobRunner(endointSyncSchedule, endpointSyncJobContext)
+	endpointSyncJobRunner := cron.NewEndpointSyncJobRunner(endpointSyncSchedule, endpointSyncJobContext)
 
 	err = jobScheduler.ScheduleJob(endpointSyncJobRunner)
 	if err != nil {
 		return err
 	}
 
-	return scheduleService.CreateSchedule(endointSyncSchedule)
+	return scheduleService.CreateSchedule(endpointSyncSchedule)
 }
 
-func loadSchedulesFromDatabase(jobScheduler portainer.JobScheduler, jobService portainer.JobService, scheduleService portainer.ScheduleService, endpointService portainer.EndpointService, fileService portainer.FileService) error {
+func loadSchedulesFromDatabase(jobScheduler portainer.JobScheduler, jobService portainer.JobService, scheduleService portainer.ScheduleService, endpointService portainer.EndpointService, fileService portainer.FileService, reverseTunnelService portainer.ReverseTunnelService) error {
 	schedules, err := scheduleService.Schedules()
 	if err != nil {
 		return err
@@ -213,6 +214,13 @@ func loadSchedulesFromDatabase(jobScheduler portainer.JobScheduler, jobService p
 				return err
 			}
 		}
+
+		if schedule.EdgeSchedule != nil {
+			for _, endpointID := range schedule.EdgeSchedule.Endpoints {
+				reverseTunnelService.AddSchedule(endpointID, schedule.EdgeSchedule)
+			}
+		}
+
 	}
 
 	return nil
@@ -260,10 +268,13 @@ func initSettings(settingsService portainer.SettingsService, flags *portainer.CL
 					portainer.LDAPGroupSearchSettings{},
 				},
 			},
+			OAuthSettings:                      portainer.OAuthSettings{},
 			AllowBindMountsForRegularUsers:     true,
 			AllowPrivilegedModeForRegularUsers: true,
+			AllowVolumeBrowserForRegularUsers:  false,
 			EnableHostManagementFeatures:       false,
 			SnapshotInterval:                   *flags.SnapshotInterval,
+			EdgeAgentCheckinInterval:           portainer.DefaultEdgeAgentCheckinIntervalInSeconds,
 		}
 
 		if *flags.Templates != "" {
@@ -376,18 +387,18 @@ func createTLSSecuredEndpoint(flags *portainer.CLIFlags, endpointService portain
 
 	endpointID := endpointService.GetNextIdentifier()
 	endpoint := &portainer.Endpoint{
-		ID:              portainer.EndpointID(endpointID),
-		Name:            "primary",
-		URL:             *flags.EndpointURL,
-		GroupID:         portainer.EndpointGroupID(1),
-		Type:            portainer.DockerEnvironment,
-		TLSConfig:       tlsConfiguration,
-		AuthorizedUsers: []portainer.UserID{},
-		AuthorizedTeams: []portainer.TeamID{},
-		Extensions:      []portainer.EndpointExtension{},
-		Tags:            []string{},
-		Status:          portainer.EndpointStatusUp,
-		Snapshots:       []portainer.Snapshot{},
+		ID:                 portainer.EndpointID(endpointID),
+		Name:               "primary",
+		URL:                *flags.EndpointURL,
+		GroupID:            portainer.EndpointGroupID(1),
+		Type:               portainer.DockerEnvironment,
+		TLSConfig:          tlsConfiguration,
+		UserAccessPolicies: portainer.UserAccessPolicies{},
+		TeamAccessPolicies: portainer.TeamAccessPolicies{},
+		Extensions:         []portainer.EndpointExtension{},
+		Tags:               []string{},
+		Status:             portainer.EndpointStatusUp,
+		Snapshots:          []portainer.Snapshot{},
 	}
 
 	if strings.HasPrefix(endpoint.URL, "tcp://") {
@@ -419,18 +430,18 @@ func createUnsecuredEndpoint(endpointURL string, endpointService portainer.Endpo
 
 	endpointID := endpointService.GetNextIdentifier()
 	endpoint := &portainer.Endpoint{
-		ID:              portainer.EndpointID(endpointID),
-		Name:            "primary",
-		URL:             endpointURL,
-		GroupID:         portainer.EndpointGroupID(1),
-		Type:            portainer.DockerEnvironment,
-		TLSConfig:       portainer.TLSConfiguration{},
-		AuthorizedUsers: []portainer.UserID{},
-		AuthorizedTeams: []portainer.TeamID{},
-		Extensions:      []portainer.EndpointExtension{},
-		Tags:            []string{},
-		Status:          portainer.EndpointStatusUp,
-		Snapshots:       []portainer.Snapshot{},
+		ID:                 portainer.EndpointID(endpointID),
+		Name:               "primary",
+		URL:                endpointURL,
+		GroupID:            portainer.EndpointGroupID(1),
+		Type:               portainer.DockerEnvironment,
+		TLSConfig:          portainer.TLSConfiguration{},
+		UserAccessPolicies: portainer.UserAccessPolicies{},
+		TeamAccessPolicies: portainer.TeamAccessPolicies{},
+		Extensions:         []portainer.EndpointExtension{},
+		Tags:               []string{},
+		Status:             portainer.EndpointStatusUp,
+		Snapshots:          []portainer.Snapshot{},
 	}
 
 	return snapshotAndPersistEndpoint(endpoint, endpointService, snapshotter)
@@ -478,19 +489,9 @@ func initJobService(dockerClientFactory *docker.ClientFactory) portainer.JobServ
 func initExtensionManager(fileService portainer.FileService, extensionService portainer.ExtensionService) (portainer.ExtensionManager, error) {
 	extensionManager := exec.NewExtensionManager(fileService, extensionService)
 
-	extensions, err := extensionService.Extensions()
+	err := extensionManager.StartExtensions()
 	if err != nil {
 		return nil, err
-	}
-
-	for _, extension := range extensions {
-		err := extensionManager.EnableExtension(&extension, extension.License.LicenseKey)
-		if err != nil {
-			log.Printf("Unable to enable extension: %s [extension: %s]", err.Error(), extension.Name)
-			extension.Enabled = false
-			extension.License.Valid = false
-			extensionService.Persist(&extension)
-		}
 	}
 
 	return extensionManager, nil
@@ -539,7 +540,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	clientFactory := initClientFactory(digitalSignatureService)
+	reverseTunnelService := chisel.NewService(store.EndpointService, store.TunnelServerService)
+
+	clientFactory := initClientFactory(digitalSignatureService, reverseTunnelService)
 
 	jobService := initJobService(clientFactory)
 
@@ -550,12 +553,12 @@ func main() {
 		endpointManagement = false
 	}
 
-	swarmStackManager, err := initSwarmStackManager(*flags.Assets, *flags.Data, digitalSignatureService, fileService)
+	swarmStackManager, err := initSwarmStackManager(*flags.Assets, *flags.Data, digitalSignatureService, fileService, reverseTunnelService)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	composeStackManager := initComposeStackManager(*flags.Data)
+	composeStackManager := initComposeStackManager(*flags.Data, reverseTunnelService)
 
 	err = initTemplates(store.TemplateService, fileService, *flags.Templates, *flags.TemplateFile)
 	if err != nil {
@@ -569,7 +572,7 @@ func main() {
 
 	jobScheduler := initJobScheduler()
 
-	err = loadSchedulesFromDatabase(jobScheduler, jobService, store.ScheduleService, store.EndpointService, fileService)
+	err = loadSchedulesFromDatabase(jobScheduler, jobService, store.ScheduleService, store.EndpointService, fileService, reverseTunnelService)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -606,7 +609,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		adminPasswordHash, err = cryptoService.Hash(string(content))
+		adminPasswordHash, err = cryptoService.Hash(strings.TrimSuffix(string(content), "\n"))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -623,9 +626,10 @@ func main() {
 		if len(users) == 0 {
 			log.Printf("Creating admin user with password hash %s", adminPasswordHash)
 			user := &portainer.User{
-				Username: "admin",
-				Role:     portainer.AdministratorRole,
-				Password: adminPasswordHash,
+				Username:                "admin",
+				Role:                    portainer.AdministratorRole,
+				Password:                adminPasswordHash,
+				PortainerAuthorizations: portainer.DefaultPortainerAuthorizations(),
 			}
 			err := store.UserService.CreateUser(user)
 			if err != nil {
@@ -640,12 +644,19 @@ func main() {
 		go terminateIfNoAdminCreated(store.UserService)
 	}
 
+	err = reverseTunnelService.StartTunnelServer(*flags.TunnelAddr, *flags.TunnelPort, snapshotter)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	var server portainer.Server = &http.Server{
+		ReverseTunnelService:   reverseTunnelService,
 		Status:                 applicationStatus,
 		BindAddress:            *flags.Addr,
 		AssetsPath:             *flags.Assets,
 		AuthDisabled:           *flags.NoAuth,
 		EndpointManagement:     endpointManagement,
+		RoleService:            store.RoleService,
 		UserService:            store.UserService,
 		TeamService:            store.TeamService,
 		TeamMembershipService:  store.TeamMembershipService,

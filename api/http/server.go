@@ -3,33 +3,37 @@ package http
 import (
 	"time"
 
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/docker"
-	"github.com/portainer/portainer/http/handler"
-	"github.com/portainer/portainer/http/handler/auth"
-	"github.com/portainer/portainer/http/handler/dockerhub"
-	"github.com/portainer/portainer/http/handler/endpointgroups"
-	"github.com/portainer/portainer/http/handler/endpointproxy"
-	"github.com/portainer/portainer/http/handler/endpoints"
-	"github.com/portainer/portainer/http/handler/extensions"
-	"github.com/portainer/portainer/http/handler/file"
-	"github.com/portainer/portainer/http/handler/motd"
-	"github.com/portainer/portainer/http/handler/registries"
-	"github.com/portainer/portainer/http/handler/resourcecontrols"
-	"github.com/portainer/portainer/http/handler/schedules"
-	"github.com/portainer/portainer/http/handler/settings"
-	"github.com/portainer/portainer/http/handler/stacks"
-	"github.com/portainer/portainer/http/handler/status"
-	"github.com/portainer/portainer/http/handler/tags"
-	"github.com/portainer/portainer/http/handler/teammemberships"
-	"github.com/portainer/portainer/http/handler/teams"
-	"github.com/portainer/portainer/http/handler/templates"
-	"github.com/portainer/portainer/http/handler/upload"
-	"github.com/portainer/portainer/http/handler/users"
-	"github.com/portainer/portainer/http/handler/webhooks"
-	"github.com/portainer/portainer/http/handler/websocket"
-	"github.com/portainer/portainer/http/proxy"
-	"github.com/portainer/portainer/http/security"
+	"github.com/portainer/portainer/api/http/handler/support"
+
+	"github.com/portainer/portainer/api/http/handler/roles"
+
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/docker"
+	"github.com/portainer/portainer/api/http/handler"
+	"github.com/portainer/portainer/api/http/handler/auth"
+	"github.com/portainer/portainer/api/http/handler/dockerhub"
+	"github.com/portainer/portainer/api/http/handler/endpointgroups"
+	"github.com/portainer/portainer/api/http/handler/endpointproxy"
+	"github.com/portainer/portainer/api/http/handler/endpoints"
+	"github.com/portainer/portainer/api/http/handler/extensions"
+	"github.com/portainer/portainer/api/http/handler/file"
+	"github.com/portainer/portainer/api/http/handler/motd"
+	"github.com/portainer/portainer/api/http/handler/registries"
+	"github.com/portainer/portainer/api/http/handler/resourcecontrols"
+	"github.com/portainer/portainer/api/http/handler/schedules"
+	"github.com/portainer/portainer/api/http/handler/settings"
+	"github.com/portainer/portainer/api/http/handler/stacks"
+	"github.com/portainer/portainer/api/http/handler/status"
+	"github.com/portainer/portainer/api/http/handler/tags"
+	"github.com/portainer/portainer/api/http/handler/teammemberships"
+	"github.com/portainer/portainer/api/http/handler/teams"
+	"github.com/portainer/portainer/api/http/handler/templates"
+	"github.com/portainer/portainer/api/http/handler/upload"
+	"github.com/portainer/portainer/api/http/handler/users"
+	"github.com/portainer/portainer/api/http/handler/webhooks"
+	"github.com/portainer/portainer/api/http/handler/websocket"
+	"github.com/portainer/portainer/api/http/proxy"
+	"github.com/portainer/portainer/api/http/security"
 
 	"net/http"
 	"path/filepath"
@@ -42,12 +46,14 @@ type Server struct {
 	AuthDisabled           bool
 	EndpointManagement     bool
 	Status                 *portainer.Status
+	ReverseTunnelService   portainer.ReverseTunnelService
 	ExtensionManager       portainer.ExtensionManager
 	ComposeStackManager    portainer.ComposeStackManager
 	CryptoService          portainer.CryptoService
 	SignatureService       portainer.DigitalSignatureService
 	JobScheduler           portainer.JobScheduler
 	Snapshotter            portainer.Snapshotter
+	RoleService            portainer.RoleService
 	DockerHubService       portainer.DockerHubService
 	EndpointService        portainer.EndpointService
 	EndpointGroupService   portainer.EndpointGroupService
@@ -78,24 +84,42 @@ type Server struct {
 
 // Start starts the HTTP server
 func (server *Server) Start() error {
-	requestBouncerParameters := &security.RequestBouncerParams{
-		JWTService:            server.JWTService,
-		UserService:           server.UserService,
-		TeamMembershipService: server.TeamMembershipService,
-		EndpointGroupService:  server.EndpointGroupService,
-		AuthDisabled:          server.AuthDisabled,
-	}
-	requestBouncer := security.NewRequestBouncer(requestBouncerParameters)
-
 	proxyManagerParameters := &proxy.ManagerParams{
 		ResourceControlService: server.ResourceControlService,
+		UserService:            server.UserService,
+		TeamService:            server.TeamService,
 		TeamMembershipService:  server.TeamMembershipService,
 		SettingsService:        server.SettingsService,
 		RegistryService:        server.RegistryService,
 		DockerHubService:       server.DockerHubService,
 		SignatureService:       server.SignatureService,
+		ReverseTunnelService:   server.ReverseTunnelService,
+		ExtensionService:       server.ExtensionService,
+		DockerClientFactory:    server.DockerClientFactory,
 	}
 	proxyManager := proxy.NewManager(proxyManagerParameters)
+
+	authorizationServiceParameters := &portainer.AuthorizationServiceParameters{
+		EndpointService:       server.EndpointService,
+		EndpointGroupService:  server.EndpointGroupService,
+		RegistryService:       server.RegistryService,
+		RoleService:           server.RoleService,
+		TeamMembershipService: server.TeamMembershipService,
+		UserService:           server.UserService,
+	}
+	authorizationService := portainer.NewAuthorizationService(authorizationServiceParameters)
+
+	requestBouncerParameters := &security.RequestBouncerParams{
+		JWTService:            server.JWTService,
+		UserService:           server.UserService,
+		TeamMembershipService: server.TeamMembershipService,
+		EndpointService:       server.EndpointService,
+		EndpointGroupService:  server.EndpointGroupService,
+		ExtensionService:      server.ExtensionService,
+		RBACExtensionURL:      proxyManager.GetExtensionURL(portainer.RBACExtension),
+		AuthDisabled:          server.AuthDisabled,
+	}
+	requestBouncer := security.NewRequestBouncer(requestBouncerParameters)
 
 	rateLimiter := security.NewRateLimiter(10, 1*time.Second, 1*time.Hour)
 
@@ -107,6 +131,14 @@ func (server *Server) Start() error {
 	authHandler.SettingsService = server.SettingsService
 	authHandler.TeamService = server.TeamService
 	authHandler.TeamMembershipService = server.TeamMembershipService
+	authHandler.ExtensionService = server.ExtensionService
+	authHandler.EndpointService = server.EndpointService
+	authHandler.EndpointGroupService = server.EndpointGroupService
+	authHandler.RoleService = server.RoleService
+	authHandler.ProxyManager = proxyManager
+
+	var roleHandler = roles.NewHandler(requestBouncer)
+	roleHandler.RoleService = server.RoleService
 
 	var dockerHubHandler = dockerhub.NewHandler(requestBouncer)
 	dockerHubHandler.DockerHubService = server.DockerHubService
@@ -118,14 +150,20 @@ func (server *Server) Start() error {
 	endpointHandler.ProxyManager = proxyManager
 	endpointHandler.Snapshotter = server.Snapshotter
 	endpointHandler.JobService = server.JobService
+	endpointHandler.ReverseTunnelService = server.ReverseTunnelService
+	endpointHandler.SettingsService = server.SettingsService
+	endpointHandler.AuthorizationService = authorizationService
 
 	var endpointGroupHandler = endpointgroups.NewHandler(requestBouncer)
 	endpointGroupHandler.EndpointGroupService = server.EndpointGroupService
 	endpointGroupHandler.EndpointService = server.EndpointService
+	endpointGroupHandler.AuthorizationService = authorizationService
 
 	var endpointProxyHandler = endpointproxy.NewHandler(requestBouncer)
 	endpointProxyHandler.EndpointService = server.EndpointService
 	endpointProxyHandler.ProxyManager = proxyManager
+	endpointProxyHandler.SettingsService = server.SettingsService
+	endpointProxyHandler.ReverseTunnelService = server.ReverseTunnelService
 
 	var fileHandler = file.NewHandler(filepath.Join(server.AssetsPath, "public"))
 
@@ -134,6 +172,10 @@ func (server *Server) Start() error {
 	var extensionHandler = extensions.NewHandler(requestBouncer)
 	extensionHandler.ExtensionService = server.ExtensionService
 	extensionHandler.ExtensionManager = server.ExtensionManager
+	extensionHandler.EndpointGroupService = server.EndpointGroupService
+	extensionHandler.EndpointService = server.EndpointService
+	extensionHandler.RegistryService = server.RegistryService
+	extensionHandler.AuthorizationService = authorizationService
 
 	var registryHandler = registries.NewHandler(requestBouncer)
 	registryHandler.RegistryService = server.RegistryService
@@ -151,6 +193,7 @@ func (server *Server) Start() error {
 	schedulesHandler.JobService = server.JobService
 	schedulesHandler.JobScheduler = server.JobScheduler
 	schedulesHandler.SettingsService = server.SettingsService
+	schedulesHandler.ReverseTunnelService = server.ReverseTunnelService
 
 	var settingsHandler = settings.NewHandler(requestBouncer)
 	settingsHandler.SettingsService = server.SettingsService
@@ -158,6 +201,9 @@ func (server *Server) Start() error {
 	settingsHandler.FileService = server.FileService
 	settingsHandler.JobScheduler = server.JobScheduler
 	settingsHandler.ScheduleService = server.ScheduleService
+	settingsHandler.RoleService = server.RoleService
+	settingsHandler.ExtensionService = server.ExtensionService
+	settingsHandler.AuthorizationService = authorizationService
 
 	var stackHandler = stacks.NewHandler(requestBouncer)
 	stackHandler.FileService = server.FileService
@@ -169,6 +215,9 @@ func (server *Server) Start() error {
 	stackHandler.GitService = server.GitService
 	stackHandler.RegistryService = server.RegistryService
 	stackHandler.DockerHubService = server.DockerHubService
+	stackHandler.SettingsService = server.SettingsService
+	stackHandler.UserService = server.UserService
+	stackHandler.ExtensionService = server.ExtensionService
 
 	var tagHandler = tags.NewHandler(requestBouncer)
 	tagHandler.TagService = server.TagService
@@ -176,10 +225,15 @@ func (server *Server) Start() error {
 	var teamHandler = teams.NewHandler(requestBouncer)
 	teamHandler.TeamService = server.TeamService
 	teamHandler.TeamMembershipService = server.TeamMembershipService
+	teamHandler.AuthorizationService = authorizationService
 
 	var teamMembershipHandler = teammemberships.NewHandler(requestBouncer)
 	teamMembershipHandler.TeamMembershipService = server.TeamMembershipService
+	teamMembershipHandler.AuthorizationService = authorizationService
+
 	var statusHandler = status.NewHandler(requestBouncer, server.Status)
+
+	var supportHandler = support.NewHandler(requestBouncer)
 
 	var templatesHandler = templates.NewHandler(requestBouncer)
 	templatesHandler.TemplateService = server.TemplateService
@@ -195,10 +249,12 @@ func (server *Server) Start() error {
 	userHandler.CryptoService = server.CryptoService
 	userHandler.ResourceControlService = server.ResourceControlService
 	userHandler.SettingsService = server.SettingsService
+	userHandler.AuthorizationService = authorizationService
 
 	var websocketHandler = websocket.NewHandler(requestBouncer)
 	websocketHandler.EndpointService = server.EndpointService
 	websocketHandler.SignatureService = server.SignatureService
+	websocketHandler.ReverseTunnelService = server.ReverseTunnelService
 
 	var webhookHandler = webhooks.NewHandler(requestBouncer)
 	webhookHandler.WebhookService = server.WebhookService
@@ -206,6 +262,7 @@ func (server *Server) Start() error {
 	webhookHandler.DockerClientFactory = server.DockerClientFactory
 
 	server.Handler = &handler.Handler{
+		RoleHandler:            roleHandler,
 		AuthHandler:            authHandler,
 		DockerHubHandler:       dockerHubHandler,
 		EndpointGroupHandler:   endpointGroupHandler,
@@ -219,6 +276,7 @@ func (server *Server) Start() error {
 		SettingsHandler:        settingsHandler,
 		StatusHandler:          statusHandler,
 		StackHandler:           stackHandler,
+		SupportHandler:         supportHandler,
 		TagHandler:             tagHandler,
 		TeamHandler:            teamHandler,
 		TeamMembershipHandler:  teamMembershipHandler,

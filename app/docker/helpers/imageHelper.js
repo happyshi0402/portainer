@@ -1,8 +1,16 @@
+import _ from 'lodash-es';
+
 angular.module('portainer.docker')
 .factory('ImageHelper', [function ImageHelperFactory() {
   'use strict';
 
   var helper = {};
+
+  helper.isValidTag = isValidTag;
+
+  function isValidTag(tag) {
+    return tag.match(/^(?![\.\-])([a-zA-Z0-9\_\.\-])+$/g);
+  }
 
   helper.extractImageAndRegistryFromRepository = function(repository) {
     var slashCount = _.countBy(repository)['/'];

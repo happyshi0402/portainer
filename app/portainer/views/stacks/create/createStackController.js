@@ -1,3 +1,5 @@
+import {AccessControlFormData} from '../../../components/accessControlForm/porAccessControlFormModel';
+
 angular.module('portainer.app')
 .controller('CreateStackController', ['$scope', '$state', 'StackService', 'Authentication', 'Notifications', 'FormValidator', 'ResourceControlService', 'FormHelper', 'EndpointProvider',
 function ($scope, $state, StackService, Authentication, Notifications, FormValidator, ResourceControlService, FormHelper, EndpointProvider) {
@@ -95,8 +97,7 @@ function ($scope, $state, StackService, Authentication, Notifications, FormValid
 
     var accessControlData = $scope.formValues.AccessControlData;
     var userDetails = Authentication.getUserDetails();
-    var isAdmin = userDetails.role === 1;
-    var userId = userDetails.ID;
+    var isAdmin = Authentication.isAdmin();
 
     if (method === 'editor' && $scope.formValues.StackFileContent === '') {
       $scope.state.formValidationError = 'Stack file content must not be empty';
@@ -114,15 +115,20 @@ function ($scope, $state, StackService, Authentication, Notifications, FormValid
     }
     $scope.state.actionInProgress = true;
     action(name, method)
-    .then(function success() {
-      return ResourceControlService.applyResourceControl('stack', name, userId, accessControlData, []);
+    .then(function success(data) {
+      if (data.data) {
+        data = data.data;
+      }
+      const userId = userDetails.ID;
+      const resourceControl = data.ResourceControl;
+      return ResourceControlService.applyResourceControl(userId, accessControlData, resourceControl);
     })
     .then(function success() {
       Notifications.success('Stack successfully deployed');
       $state.go('portainer.stacks');
     })
     .catch(function error(err) {
-      Notifications.warning('Deployment error', type === 1 ? err.err.data.err : err.data.err);
+      Notifications.error('Deployment error', err, 'Unable to deploy stack');
     })
     .finally(function final() {
       $scope.state.actionInProgress = false;

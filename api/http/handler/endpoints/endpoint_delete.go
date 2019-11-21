@@ -7,7 +7,7 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
+	"github.com/portainer/portainer/api"
 )
 
 // DELETE request on /api/endpoints/:id
@@ -41,7 +41,14 @@ func (handler *Handler) endpointDelete(w http.ResponseWriter, r *http.Request) *
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to remove endpoint from the database", err}
 	}
 
-	handler.ProxyManager.DeleteProxy(string(endpointID))
+	handler.ProxyManager.DeleteEndpointProxy(endpoint)
+
+	if len(endpoint.UserAccessPolicies) > 0 || len(endpoint.TeamAccessPolicies) > 0 {
+		err = handler.AuthorizationService.UpdateUsersAuthorizations()
+		if err != nil {
+			return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update user authorizations", err}
+		}
+	}
 
 	return response.Empty(w)
 }

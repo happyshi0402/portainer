@@ -6,8 +6,8 @@ import (
 	httperror "github.com/portainer/libhttp/error"
 	"github.com/portainer/libhttp/request"
 	"github.com/portainer/libhttp/response"
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/http/security"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/http/security"
 )
 
 // DELETE request on /api/team_memberships/:id
@@ -36,6 +36,11 @@ func (handler *Handler) teamMembershipDelete(w http.ResponseWriter, r *http.Requ
 	err = handler.TeamMembershipService.DeleteTeamMembership(portainer.TeamMembershipID(membershipID))
 	if err != nil {
 		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to remove the team membership from the database", err}
+	}
+
+	err = handler.AuthorizationService.UpdateUsersAuthorizations()
+	if err != nil {
+		return &httperror.HandlerError{http.StatusInternalServerError, "Unable to update user authorizations", err}
 	}
 
 	return response.Empty(w)

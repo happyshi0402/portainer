@@ -5,9 +5,9 @@ import (
 
 	"github.com/gorilla/mux"
 	httperror "github.com/portainer/libhttp/error"
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/http/proxy"
-	"github.com/portainer/portainer/http/security"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/http/proxy"
+	"github.com/portainer/portainer/api/http/security"
 )
 
 func hideFields(registry *portainer.Registry) {
@@ -18,6 +18,7 @@ func hideFields(registry *portainer.Registry) {
 // Handler is the HTTP handler used to handle registry operations.
 type Handler struct {
 	*mux.Router
+	requestBouncer   *security.RequestBouncer
 	RegistryService  portainer.RegistryService
 	ExtensionService portainer.ExtensionService
 	FileService      portainer.FileService
@@ -27,25 +28,27 @@ type Handler struct {
 // NewHandler creates a handler to manage registry operations.
 func NewHandler(bouncer *security.RequestBouncer) *Handler {
 	h := &Handler{
-		Router: mux.NewRouter(),
+		Router:         mux.NewRouter(),
+		requestBouncer: bouncer,
 	}
 
 	h.Handle("/registries",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.registryCreate))).Methods(http.MethodPost)
+		bouncer.AdminAccess(httperror.LoggerHandler(h.registryCreate))).Methods(http.MethodPost)
 	h.Handle("/registries",
 		bouncer.RestrictedAccess(httperror.LoggerHandler(h.registryList))).Methods(http.MethodGet)
 	h.Handle("/registries/{id}",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.registryInspect))).Methods(http.MethodGet)
+		bouncer.RestrictedAccess(httperror.LoggerHandler(h.registryInspect))).Methods(http.MethodGet)
 	h.Handle("/registries/{id}",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.registryUpdate))).Methods(http.MethodPut)
-	h.Handle("/registries/{id}/access",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.registryUpdateAccess))).Methods(http.MethodPut)
+		bouncer.AdminAccess(httperror.LoggerHandler(h.registryUpdate))).Methods(http.MethodPut)
 	h.Handle("/registries/{id}/configure",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.registryConfigure))).Methods(http.MethodPost)
+		bouncer.AdminAccess(httperror.LoggerHandler(h.registryConfigure))).Methods(http.MethodPost)
 	h.Handle("/registries/{id}",
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.registryDelete))).Methods(http.MethodDelete)
+		bouncer.AdminAccess(httperror.LoggerHandler(h.registryDelete))).Methods(http.MethodDelete)
 	h.PathPrefix("/registries/{id}/v2").Handler(
-		bouncer.AdministratorAccess(httperror.LoggerHandler(h.proxyRequestsToRegistryAPI)))
-
+		bouncer.AuthenticatedAccess(httperror.LoggerHandler(h.proxyRequestsToRegistryAPI)))
+	h.PathPrefix("/registries/{id}/proxies/gitlab").Handler(
+		bouncer.RestrictedAccess(httperror.LoggerHandler(h.proxyRequestsToGitlabAPIWithRegistry)))
+	h.PathPrefix("/registries/proxies/gitlab").Handler(
+		bouncer.AdminAccess(httperror.LoggerHandler(h.proxyRequestsToGitlabAPIWithoutRegistry)))
 	return h
 }

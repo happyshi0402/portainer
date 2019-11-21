@@ -1,6 +1,8 @@
+import { ContainerDetailsViewModel, ContainerViewModel, ContainerStatsViewModel } from '../models/container';
+
 angular.module('portainer.docker')
-.factory('ContainerService', ['$q', 'Container', 'ResourceControlService', 'LogHelper',
-function ContainerServiceFactory($q, Container, ResourceControlService, LogHelper) {
+.factory('ContainerService', ['$q', 'Container', 'ResourceControlService', 'LogHelper', '$timeout',
+function ContainerServiceFactory($q, Container, ResourceControlService, LogHelper, $timeout) {
   'use strict';
   var service = {};
 
@@ -31,6 +33,26 @@ function ContainerServiceFactory($q, Container, ResourceControlService, LogHelpe
     .catch(function error(err) {
       deferred.reject({ msg: 'Unable to retrieve containers', err: err });
     });
+
+    return deferred.promise;
+  };
+
+  service.resizeTTY = function (id, width, height, timeout) {
+    var deferred = $q.defer();
+
+    $timeout(function() {
+      Container.resize({}, {id: id, height: height, width: width}).$promise
+          .then(function success(data) {
+            if (data.message) {
+              deferred.reject({msg: 'Unable to resize tty of container ' + id, err: data.message});
+            } else {
+              deferred.resolve(data);
+            }
+          })
+          .catch(function error(err) {
+            deferred.reject({msg: 'Unable to resize tty of container ' + id, err: err});
+          });
+    }, timeout);
 
     return deferred.promise;
   };
@@ -85,14 +107,14 @@ function ContainerServiceFactory($q, Container, ResourceControlService, LogHelpe
 
   service.createAndStartContainer = function(configuration) {
     var deferred = $q.defer();
-    var containerID;
+    var container;
     service.createContainer(configuration)
     .then(function success(data) {
-      containerID = data.Id;
-      return service.startContainer(containerID);
+      container = data;
+      return service.startContainer(container.Id);
     })
     .then(function success() {
-      deferred.resolve({ Id: containerID });
+      deferred.resolve(container);
     })
     .catch(function error(err) {
       deferred.reject(err);
@@ -107,13 +129,9 @@ function ContainerServiceFactory($q, Container, ResourceControlService, LogHelpe
     .then(function success(data) {
       if (data.message) {
         deferred.reject({ msg: data.message, err: data.message });
+      } else {
+        deferred.resolve();
       }
-      if (container.ResourceControl && container.ResourceControl.Type === 1) {
-        return ResourceControlService.deleteResourceControl(container.ResourceControl.Id);
-      }
-    })
-    .then(function success() {
-      deferred.resolve();
     })
     .catch(function error(err) {
       deferred.reject({ msg: 'Unable to remove container', err: err });

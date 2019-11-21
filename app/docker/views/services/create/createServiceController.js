@@ -1,4 +1,12 @@
- angular.module('portainer.docker')
+import _ from 'lodash-es';
+import { AccessControlFormData } from '../../../../portainer/components/accessControlForm/porAccessControlFormModel';
+
+require('./includes/update-restart.html')
+require('./includes/secret.html')
+require('./includes/config.html')
+require('./includes/resources-placement.html')
+
+angular.module('portainer.docker')
 .controller('CreateServiceController', ['$q', '$scope', '$state', '$timeout', 'Service', 'ServiceHelper', 'ConfigService', 'ConfigHelper', 'SecretHelper', 'SecretService', 'VolumeService', 'NetworkService', 'ImageHelper', 'LabelHelper', 'Authentication', 'ResourceControlService', 'Notifications', 'FormValidator', 'PluginService', 'RegistryService', 'HttpRequestHelper', 'NodeService', 'SettingsService', 'WebhookService','EndpointProvider',
 function ($q, $scope, $state, $timeout, Service, ServiceHelper, ConfigService, ConfigHelper, SecretHelper, SecretService, VolumeService, NetworkService, ImageHelper, LabelHelper, Authentication, ResourceControlService, Notifications, FormValidator, PluginService, RegistryService, HttpRequestHelper, NodeService, SettingsService, WebhookService,EndpointProvider) {
 
@@ -424,15 +432,14 @@ function ($q, $scope, $state, $timeout, Service, ServiceHelper, ConfigService, C
     var authenticationDetails = registry.Authentication ? RegistryService.encodedCredentials(registry) : '';
     HttpRequestHelper.setRegistryAuthenticationHeader(authenticationDetails);
 
-    var serviceIdentifier;
     Service.create(config).$promise
     .then(function success(data) {
-      serviceIdentifier = data.ID;
-      return $q.when($scope.formValues.Webhook && WebhookService.createServiceWebhook(serviceIdentifier, EndpointProvider.endpointID()));
-    })
-    .then(function success() {
-      var userId = Authentication.getUserDetails().ID;
-      return ResourceControlService.applyResourceControl('service', serviceIdentifier, userId, accessControlData, []);
+      const serviceId = data.ID;
+      const resourceControl = data.Portainer.ResourceControl;
+      const userId = Authentication.getUserDetails().ID;
+      const rcPromise = ResourceControlService.applyResourceControl(userId, accessControlData, resourceControl);
+      const webhookPromise = $q.when($scope.formValues.Webhook && WebhookService.createServiceWebhook(serviceId, EndpointProvider.endpointID()));
+      return $q.all([rcPromise, webhookPromise]);
     })
     .then(function success() {
       Notifications.success('Service successfully created');
@@ -459,12 +466,9 @@ function ($q, $scope, $state, $timeout, Service, ServiceHelper, ConfigService, C
   }
 
   $scope.create = function createService() {
-
     var accessControlData = $scope.formValues.AccessControlData;
-    var userDetails = Authentication.getUserDetails();
-    var isAdmin = userDetails.role === 1;
 
-    if (!validateForm(accessControlData, isAdmin)) {
+    if (!validateForm(accessControlData, $scope.isAdmin)) {
       return;
     }
 
@@ -516,8 +520,7 @@ function ($q, $scope, $state, $timeout, Service, ServiceHelper, ConfigService, C
       $scope.availableLoggingDrivers = data.availableLoggingDrivers;
       initSlidersMaxValuesBasedOnNodeData(data.nodes);
       $scope.allowBindMounts = data.settings.AllowBindMountsForRegularUsers;
-      var userDetails = Authentication.getUserDetails();
-      $scope.isAdmin = userDetails.role === 1;
+      $scope.isAdmin = Authentication.isAdmin();
     })
     .catch(function error(err) {
       Notifications.error('Failure', err, 'Unable to initialize view');

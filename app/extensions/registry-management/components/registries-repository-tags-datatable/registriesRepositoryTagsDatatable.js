@@ -1,6 +1,6 @@
 angular.module('portainer.extensions.registrymanagement').component('registriesRepositoryTagsDatatable', {
-  templateUrl: 'app/extensions/registry-management/components/registries-repository-tags-datatable/registriesRepositoryTagsDatatable.html',
-  controller: 'GenericDatatableController',
+  templateUrl: './registriesRepositoryTagsDatatable.html',
+  controller: 'RegistryRepositoriesTagsDatatableController',
   bindings: {
     titleText: '@',
     titleIcon: '@',
@@ -9,6 +9,9 @@ angular.module('portainer.extensions.registrymanagement').component('registriesR
     orderBy: '@',
     reverseOrder: '<',
     removeAction: '<',
-    retagAction: '<'
+    retagAction: '<',
+    advancedFeaturesAvailable: '<',
+    paginationAction: '<',
+    loading: '<'
   }
 });

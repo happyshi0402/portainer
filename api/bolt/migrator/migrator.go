@@ -2,16 +2,20 @@ package migrator
 
 import (
 	"github.com/boltdb/bolt"
-	"github.com/portainer/portainer"
-	"github.com/portainer/portainer/bolt/endpoint"
-	"github.com/portainer/portainer/bolt/endpointgroup"
-	"github.com/portainer/portainer/bolt/extension"
-	"github.com/portainer/portainer/bolt/resourcecontrol"
-	"github.com/portainer/portainer/bolt/settings"
-	"github.com/portainer/portainer/bolt/stack"
-	"github.com/portainer/portainer/bolt/template"
-	"github.com/portainer/portainer/bolt/user"
-	"github.com/portainer/portainer/bolt/version"
+	"github.com/portainer/portainer/api"
+	"github.com/portainer/portainer/api/bolt/endpoint"
+	"github.com/portainer/portainer/api/bolt/endpointgroup"
+	"github.com/portainer/portainer/api/bolt/extension"
+	"github.com/portainer/portainer/api/bolt/registry"
+	"github.com/portainer/portainer/api/bolt/resourcecontrol"
+	"github.com/portainer/portainer/api/bolt/role"
+	"github.com/portainer/portainer/api/bolt/schedule"
+	"github.com/portainer/portainer/api/bolt/settings"
+	"github.com/portainer/portainer/api/bolt/stack"
+	"github.com/portainer/portainer/api/bolt/teammembership"
+	"github.com/portainer/portainer/api/bolt/template"
+	"github.com/portainer/portainer/api/bolt/user"
+	"github.com/portainer/portainer/api/bolt/version"
 )
 
 type (
@@ -22,9 +26,13 @@ type (
 		endpointGroupService   *endpointgroup.Service
 		endpointService        *endpoint.Service
 		extensionService       *extension.Service
+		registryService        *registry.Service
 		resourceControlService *resourcecontrol.Service
+		roleService            *role.Service
+		scheduleService        *schedule.Service
 		settingsService        *settings.Service
 		stackService           *stack.Service
+		teamMembershipService  *teammembership.Service
 		templateService        *template.Service
 		userService            *user.Service
 		versionService         *version.Service
@@ -38,9 +46,13 @@ type (
 		EndpointGroupService   *endpointgroup.Service
 		EndpointService        *endpoint.Service
 		ExtensionService       *extension.Service
+		RegistryService        *registry.Service
 		ResourceControlService *resourcecontrol.Service
+		RoleService            *role.Service
+		ScheduleService        *schedule.Service
 		SettingsService        *settings.Service
 		StackService           *stack.Service
+		TeamMembershipService  *teammembership.Service
 		TemplateService        *template.Service
 		UserService            *user.Service
 		VersionService         *version.Service
@@ -56,8 +68,12 @@ func NewMigrator(parameters *Parameters) *Migrator {
 		endpointGroupService:   parameters.EndpointGroupService,
 		endpointService:        parameters.EndpointService,
 		extensionService:       parameters.ExtensionService,
+		registryService:        parameters.RegistryService,
 		resourceControlService: parameters.ResourceControlService,
+		roleService:            parameters.RoleService,
+		scheduleService:        parameters.ScheduleService,
 		settingsService:        parameters.SettingsService,
+		teamMembershipService:  parameters.TeamMembershipService,
 		templateService:        parameters.TemplateService,
 		stackService:           parameters.StackService,
 		userService:            parameters.UserService,
@@ -214,8 +230,72 @@ func (m *Migrator) Migrate() error {
 		}
 	}
 
+	// Portainer 1.20.1
 	if m.currentDBVersion < 17 {
 		err := m.updateExtensionsToDBVersion17()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Portainer 1.21.0
+	if m.currentDBVersion < 18 {
+		err := m.updateUsersToDBVersion18()
+		if err != nil {
+			return err
+		}
+
+		err = m.updateEndpointsToDBVersion18()
+		if err != nil {
+			return err
+		}
+
+		err = m.updateEndpointGroupsToDBVersion18()
+		if err != nil {
+			return err
+		}
+
+		err = m.updateRegistriesToDBVersion18()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Portainer 1.22.0
+	if m.currentDBVersion < 19 {
+		err := m.updateSettingsToDBVersion19()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Portainer 1.22.1
+	if m.currentDBVersion < 20 {
+		err := m.updateUsersToDBVersion20()
+		if err != nil {
+			return err
+		}
+
+		err = m.updateSettingsToDBVersion20()
+		if err != nil {
+			return err
+		}
+
+		err = m.updateSchedulesToDBVersion20()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Portainer 1.23.0-dev
+	// DBVersion 21 is missing as it was shipped as via hotfix 1.22.2
+	if m.currentDBVersion < 22 {
+		err := m.updateResourceControlsToDBVersion22()
+		if err != nil {
+			return err
+		}
+
+		err = m.updateUsersAndRolesToDBVersion22()
 		if err != nil {
 			return err
 		}

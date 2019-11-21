@@ -1,3 +1,6 @@
+import { AccessControlFormData } from '../../../../portainer/components/accessControlForm/porAccessControlFormModel';
+import { MacvlanFormData } from '../../../components/network-macvlan-form/networkMacvlanFormModel';
+
 angular.module('portainer.docker')
   .controller('CreateNetworkController', ['$q', '$scope', '$state', 'PluginService', 'Notifications', 'NetworkService', 'LabelHelper', 'Authentication', 'ResourceControlService', 'FormValidator', 'HttpRequestHelper',
     function ($q, $scope, $state, PluginService, Notifications, NetworkService, LabelHelper, Authentication, ResourceControlService, FormValidator, HttpRequestHelper) {
@@ -131,9 +134,10 @@ angular.module('portainer.docker')
         $scope.state.actionInProgress = true;
         NetworkService.create(context.networkConfiguration)
           .then(function success(data) {
-            var networkIdentifier = data.Id;
-            var userId = context.userDetails.ID;
-            return ResourceControlService.applyResourceControl('network', networkIdentifier, userId, context.accessControlData, []);
+            const userId = context.userDetails.ID;
+            const accessControlData = context.accessControlData;
+            const resourceControl = data.Portainer.ResourceControl;
+            return ResourceControlService.applyResourceControl(userId, accessControlData, resourceControl);
           })
           .then(function success() {
             Notifications.success('Network successfully created');
@@ -155,7 +159,7 @@ angular.module('portainer.docker')
         var networkConfiguration = prepareConfiguration();
         var accessControlData = $scope.formValues.AccessControlData;
         var userDetails = Authentication.getUserDetails();
-        var isAdmin = userDetails.role === 1;
+        var isAdmin = Authentication.isAdmin();
 
         if (!validateForm(accessControlData, isAdmin)) {
           return;
